@@ -62,6 +62,13 @@ object DrawerBackground {
     @Volatile
     private var cacheBitmap: Bitmap? = null
 
+    /** Extra-blurred copy of [cacheBitmap] for the frosted search pill. */
+    @Volatile
+    private var cacheFrosted: Bitmap? = null
+
+    /** Extra blur for the pill on top of the backdrop, in screen px. */
+    private const val PILL_EXTRA_RADIUS = 30f
+
     @Volatile
     private var wallpaperReadable: Boolean? = null
 
@@ -79,7 +86,12 @@ object DrawerBackground {
     fun invalidate() {
         cacheKey = null
         cacheBitmap = null
+        cacheFrosted = null
     }
+
+    /** The frosted pill bitmap that goes with [backdrop] (same size), if it was rendered. */
+    fun frostedFor(backdrop: Bitmap?): Bitmap? =
+        if (backdrop != null && backdrop === cacheBitmap) cacheFrosted else null
 
     /** Last rendered bitmap if it matches the request, without doing any work. */
     fun cached(context: Context, radius: Int): Bitmap? {
@@ -177,8 +189,23 @@ object DrawerBackground {
             null
         }
 
+        // Blur the finished backdrop once more for the search pill (same size, same mapping)
+        val frosted = result?.let { base ->
+            val r = PILL_EXTRA_RADIUS * STRENGTH * RENDER_SCALE
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    runCatching { blurOnGpu(base, r) }.getOrNull() ?: cheapBlur(base, r)
+                } else {
+                    cheapBlur(base, r)
+                }
+            } catch (t: Throwable) {
+                null
+            }
+        }
+
         cacheKey = key
         cacheBitmap = result
+        cacheFrosted = frosted
         return result
     }
 

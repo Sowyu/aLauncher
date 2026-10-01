@@ -5,4 +5,6 @@
     <color name="drawer_scrim_solid">#D9120E1A</color>
     <color name="drawer_search_bg">#D91E1826</color>
     <color name="drawer_search_icon">#B8A9B8</color>
+    <!-- Tint over the frosted pill (~45%) -->
+    <color name="drawer_search_tint">#731E1826</color>
 </resources>

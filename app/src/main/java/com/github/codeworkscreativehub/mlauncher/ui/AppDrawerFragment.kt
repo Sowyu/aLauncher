@@ -23,6 +23,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.widget.SearchView
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
@@ -55,6 +56,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
+import com.github.codeworkscreativehub.mlauncher.ui.components.FrostedPillDrawable
 import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -100,6 +102,7 @@ class AppDrawerFragment : BaseFragment() {
     private var forceListRefresh = false
     private var backgroundJob: Job? = null
     private var shownBackground: Bitmap? = null
+    private var pillBackground: FrostedPillDrawable? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -128,6 +131,7 @@ class AppDrawerFragment : BaseFragment() {
         viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
 
         setupInsets()
+        setupFrostedPill()
         setupSidebarSide()
         setupDragToClose()
 
@@ -398,6 +402,21 @@ class AppDrawerFragment : BaseFragment() {
         ViewCompat.requestApplyInsets(panel)
     }
 
+    /** The search pill shows a stronger blur of the backdrop behind it, lightly tinted. */
+    private fun setupFrostedPill() {
+        val ctx = requireContext()
+        val drawable = FrostedPillDrawable(
+            pill = binding.searchContainer,
+            backdrop = binding.drawerBlur,
+            tintWithImage = ContextCompat.getColor(ctx, R.color.drawer_search_tint),
+            tintWithoutImage = ContextCompat.getColor(ctx, R.color.drawer_search_bg),
+        )
+        pillBackground = drawable
+        binding.searchContainer.background = drawable
+        // Keyboard pushes it up, panel slides: resample what's behind it
+        binding.searchContainer.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> v.invalidate() }
+    }
+
     /** Sidebar goes on the side opposite the text, and the list keeps clear of it. */
     private fun setupSidebarSide() {
         val params = binding.sidebarContainer.layoutParams as FrameLayout.LayoutParams
@@ -466,6 +485,8 @@ class AppDrawerFragment : BaseFragment() {
         val b = _binding ?: return
         b.mainLayout.translationY = (1f - progress) * travel
         b.drawerBackdrop.alpha = progress
+        // The pill moved relative to the fixed backdrop it samples
+        b.searchContainer.invalidate()
         // The backdrop is static: cache it in a GPU layer while it fades so frames stay cheap
         val layer = if (progress > 0f && progress < 1f) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
         if (b.drawerBackdrop.layerType != layer) b.drawerBackdrop.setLayerType(layer, null)
@@ -552,6 +573,7 @@ class AppDrawerFragment : BaseFragment() {
         shownBackground = bmp
         b.drawerBlur.setImageBitmap(bmp)
         b.drawerBlur.isVisible = bmp != null
+        pillBackground?.setFrosted(DrawerBackground.frostedFor(bmp))
         b.drawerScrim.setBackgroundResource(if (bmp != null) R.color.drawer_scrim else R.color.drawer_scrim_solid)
     }
 
@@ -662,6 +684,7 @@ class AppDrawerFragment : BaseFragment() {
         super.onDestroyView()
         backgroundJob?.cancel()
         shownBackground = null
+        pillBackground = null
         _binding = null
     }
 
