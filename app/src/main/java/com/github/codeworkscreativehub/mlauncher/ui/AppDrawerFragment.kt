@@ -321,8 +321,13 @@ class AppDrawerFragment : BaseFragment() {
         fun applyBottom(insets: WindowInsetsCompat) {
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-            val params = binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
             val bottom = maxOf(ime, nav) + baseMargin
+            if (!binding.searchContainer.isVisible) {
+                // No search pill: the list itself keeps clear of the nav bar
+                binding.appsRecyclerView.updatePadding(bottom = bottom)
+                return
+            }
+            val params = binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
             if (params.bottomMargin != bottom) {
                 params.bottomMargin = bottom
                 binding.searchContainer.layoutParams = params
