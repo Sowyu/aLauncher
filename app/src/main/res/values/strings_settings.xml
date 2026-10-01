@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Main screen -->
+    <string name="st_settings">Settings</string>
+    <string name="st_search_hint">Search settings</string>
+    <string name="st_no_results">No settings match</string>
+    <string name="st_back">Back</string>
+    <string name="st_clear_search">Clear search</string>
+
+    <string name="st_cat_home">Home screen</string>
+    <string name="st_cat_home_sub">Apps, alignment, size, icons</string>
+    <string name="st_cat_clock">Clock &amp; date</string>
+    <string name="st_cat_clock_sub">Size, colour, alignment, format</string>
+    <string name="st_cat_look">Look</string>
+    <string name="st_cat_look_sub">Font, colours, theme</string>
+    <string name="st_cat_drawer">App drawer</string>
+    <string name="st_cat_drawer_sub">Search, sidebar, background, hidden apps</string>
+    <string name="st_cat_gestures">Gestures</string>
+    <string name="st_cat_gestures_sub">Swipes, double tap</string>
+    <string name="st_cat_backup">Backup &amp; restore</string>
+    <string name="st_cat_backup_sub">Save or load your setup</string>
+    <string name="st_cat_about">About &amp; advanced</string>
+    <string name="st_cat_about_sub">Version, default launcher, more</string>
+
+    <!-- Common -->
+    <string name="st_done">Done</string>
+    <string name="st_cancel">Cancel</string>
+    <string name="st_none">None</string>
+    <string name="st_open_app">Open %1$s</string>
+    <string name="st_hue">Hue</string>
+    <string name="st_saturation">Saturation</string>
+    <string name="st_brightness">Brightness</string>
+
+    <!-- Home screen -->
+    <string name="st_sec_apps">Apps</string>
+    <string name="st_sec_layout">Layout</string>
+    <string name="st_sec_appearance">Appearance</string>
+    <string name="st_sec_shortcuts">Shortcut buttons</string>
+    <string name="st_home_apps">Number of apps</string>
+    <string name="st_home_pages">Pages</string>
+    <string name="st_home_pager">Page indicator</string>
+    <string name="st_home_pager_sub">Show which page you are on</string>
+    <string name="st_reorder_apps">Choose and reorder apps</string>
+    <string name="st_reorder_apps_sub">Pick which apps sit on the home screen</string>
+    <string name="st_lock_home">Lock home apps</string>
+    <string name="st_lock_home_sub">Stop long press from changing them</string>
+    <string name="st_home_alignment">App alignment</string>
+    <string name="st_align_bottom">Align to bottom</string>
+    <string name="st_app_text_size">Text size</string>
+    <string name="st_padding">Spacing between apps</string>
+    <string name="st_extend_area">Wider tap area</string>
+    <string name="st_extend_area_sub">Tap anywhere on the row to open the app</string>
+    <string name="st_home_icons">Icon pack</string>
+    <string name="st_app_colour">Text colour</string>
+    <string name="st_show_shortcuts">Show shortcut buttons</string>
+    <string name="st_shortcut_buttons">Buttons shown</string>
+
+    <!-- Clock and date -->
+    <string name="st_sec_clock">Clock</string>
+    <string name="st_sec_date">Date</string>
+    <string name="st_sec_tap">Tap actions</string>
+    <string name="st_show_clock">Show clock</string>
+    <string name="st_show_ampm">Show AM/PM</string>
+    <string name="st_clock_size">Clock size</string>
+    <string name="st_clock_colour">Clock colour</string>
+    <string name="st_clock_alignment">Clock alignment</string>
+    <string name="st_show_date">Show date</string>
+    <string name="st_show_day_of_year">Show day of year</string>
+    <string name="st_date_size">Date size</string>
+    <string name="st_date_colour">Date colour</string>
+    <string name="st_date_alignment">Date alignment</string>
+    <string name="st_clock_tap">Tap on clock</string>
+    <string name="st_date_tap">Tap on date</string>
+
+    <!-- Look -->
+    <string name="st_sec_theme">Theme</string>
+    <string name="st_sec_background">Background</string>
+    <string name="st_sec_system_bars">System bars</string>
+    <string name="st_theme_mode">Theme</string>
+    <string name="st_font">Font</string>
+    <string name="st_font_sub">The launcher restarts to apply it</string>
+    <string name="st_background_colour">Background colour</string>
+    <string name="st_transparent_background">Transparent background</string>
+    <string name="st_transparent_background_sub">Show only the wallpaper behind lists</string>
+    <string name="st_background_transparency">Background transparency</string>
+    <string name="st_shortcut_colour">Shortcut buttons colour</string>
+    <string name="st_status_bar">Show status bar</string>
+    <string name="st_nav_bar">Show navigation bar</string>
+
+    <!-- App drawer -->
+    <string name="st_sec_search">Search</string>
+    <string name="st_sec_list">List</string>
+    <string name="st_hide_search">Hide search bar</string>
+    <string name="st_auto_keyboard">Open keyboard automatically</string>
+    <string name="st_search_engine">Web search engine</string>
+    <string name="st_web_search_button">Web search button</string>
+    <string name="st_web_search_button_sub">Show a button to search the web</string>
+    <string name="st_fuzzy">Fuzzy search</string>
+    <string name="st_fuzzy_sub">Match apps even with typos</string>
+    <string name="st_search_from_start">Match from first letter</string>
+    <string name="st_fuzzy_strength">Fuzzy search strength</string>
+    <string name="st_auto_open">Open single match</string>
+    <string name="st_auto_open_sub">Launch the app when only one is left</string>
+    <string name="st_open_on_enter">Open on enter</string>
+    <string name="st_open_on_enter_sub">Enter key opens the first result</string>
+    <string name="st_az_sidebar">A to Z sidebar</string>
+    <string name="st_drawer_alignment">App alignment</string>
+    <string name="st_drawer_icons">Icon pack</string>
+    <string name="st_long_press_menu">Long press menu</string>
+    <string name="st_hidden_apps">Hidden apps</string>
+    <string name="st_hidden_apps_sub">See and unhide apps</string>
+    <string name="st_drawer_background">Background image</string>
+    <string name="st_drawer_bg_custom">Custom image</string>
+    <string name="st_drawer_bg_wallpaper">System wallpaper</string>
+    <string name="st_drawer_bg_none">None, tap to choose a photo of your wallpaper</string>
+    <string name="st_drawer_bg_explainer">This phone does not share its wallpaper with apps, so pick the same photo here.</string>
+    <string name="st_drawer_bg_choose">Choose image</string>
+    <string name="st_drawer_bg_remove">Remove image</string>
+    <string name="st_blur">Background blur</string>
+
+    <!-- Gestures -->
+    <string name="st_sec_taps">Taps</string>
+    <string name="st_sec_short_swipes">Short swipes</string>
+    <string name="st_sec_long_swipes">Long swipes</string>
+    <string name="st_sec_sensitivity">Sensitivity</string>
+    <string name="st_double_tap">Double tap</string>
+    <string name="st_logo_tap">Tap on shortcut logo</string>
+    <string name="st_swipe_up">Swipe up</string>
+    <string name="st_swipe_down">Swipe down</string>
+    <string name="st_swipe_left">Swipe left</string>
+    <string name="st_swipe_right">Swipe right</string>
+    <string name="st_long_swipe_up">Long swipe up</string>
+    <string name="st_long_swipe_down">Long swipe down</string>
+    <string name="st_long_swipe_left">Long swipe left</string>
+    <string name="st_long_swipe_right">Long swipe right</string>
+    <string name="st_short_threshold">Short swipe distance</string>
+    <string name="st_long_threshold">Long swipe distance</string>
+    <string name="st_threshold_sub">Share of the screen a swipe has to cover</string>
+
+    <!-- Backup -->
+    <string name="st_sec_everything">Everything</string>
+    <string name="st_sec_colours">Colours only</string>
+    <string name="st_backup_full">Back up settings</string>
+    <string name="st_backup_full_sub">Save every setting to a file</string>
+    <string name="st_restore_full">Restore settings</string>
+    <string name="st_restore_full_sub">Load settings from a backup file</string>
+    <string name="st_export_colours">Export colours</string>
+    <string name="st_export_colours_sub">Save your colour theme to a file</string>
+    <string name="st_import_colours">Import colours</string>
+    <string name="st_import_colours_sub">Load a colour theme from a file</string>
+    <string name="st_reset_all">Reset all settings</string>
+    <string name="st_reset_all_sub">Start over with the defaults</string>
+    <string name="st_reset_all_confirm">This clears every setting and restarts the launcher. Back up first if you want to keep them.</string>
+    <string name="st_reset">Reset</string>
+
+    <!-- About and advanced -->
+    <string name="st_sec_about">About</string>
+    <string name="st_sec_launcher">Launcher</string>
+    <string name="st_sec_behaviour">Behaviour</string>
+    <string name="st_version">Version</string>
+    <string name="st_app_info">App info</string>
+    <string name="st_app_info_sub">Storage, permissions, force stop</string>
+    <string name="st_source_code">Source code</string>
+    <string name="st_set_default">Set as default launcher</string>
+    <string name="st_change_default">Change default launcher</string>
+    <string name="st_restart">Restart launcher</string>
+    <string name="st_exit">Switch to another launcher</string>
+    <string name="st_exit_sub">Open a different launcher this time</string>
+    <string name="st_exit_dialog">Choose a launcher</string>
+    <string name="st_no_launchers">No other launchers found</string>
+    <string name="st_language">Language</string>
+    <string name="st_lock_orientation">Lock orientation</string>
+    <string name="st_lock_orientation_sub">Keep the current rotation, restarts the launcher</string>
+    <string name="st_force_wallpaper">Force coloured wallpaper</string>
+    <string name="st_force_wallpaper_sub">Replaces your wallpaper with the background colour</string>
+    <string name="st_lock_settings">Lock settings</string>
+    <string name="st_lock_settings_sub">Ask for fingerprint or PIN to open settings</string>
+    <string name="st_haptic">Haptic feedback</string>
+</resources>
