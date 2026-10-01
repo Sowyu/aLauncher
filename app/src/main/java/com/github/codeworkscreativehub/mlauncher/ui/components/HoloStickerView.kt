@@ -282,26 +282,24 @@ class HoloStickerView @JvmOverloads constructor(
         val strength = ((0.22f + 0.5f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
 
         // Band direction ~60°; tilt slides the bands ~2 sticker widths over the full range
-        // Band angle swings with the tilt direction; phase slides with tilt along both axes
-        val angle = Math.toRadians(60.0) + atan2(ty.toDouble(), tx.toDouble() + 1e-3) * 0.35 * motion
-        val dx = cos(angle).toFloat()
-        val dy = sin(angle).toFloat()
-        val period = size / 2.6f
-        val shift = (tx * dx + ty * dy) * size * 2.2f + (tx - ty) * size * 0.6f
-
-        // (1) Rainbow foil in ridged diagonal streaks
-        rainbowPaint.shader = LinearGradient(0f, 0f, dx * period, dy * period, rainbow, null, Shader.TileMode.REPEAT)
-        shaderMatrix.setTranslate(left + dx * shift, top + dy * shift)
-        rainbowPaint.shader.setLocalMatrix(shaderMatrix)
-        val ridge = period / 3.5f
-        ridgePaint.shader = LinearGradient(
-            0f, 0f, dx * ridge, dy * ridge,
-            intArrayOf(Color.argb(255, 0, 0, 0), Color.argb(90, 0, 0, 0), Color.argb(255, 0, 0, 0)),
-            null, Shader.TileMode.REPEAT
-        ).also { g ->
-            shaderMatrix.setTranslate(left + dx * shift * 1.3f, top + dy * shift * 1.3f)
+        // Light point: follows the tilt in any direction. The rainbow ripples out from it in rings,
+        // so the colours flow whichever way the phone moves (no fixed band direction).
+        val period = size / 2.4f
+        val lx = left + size * (0.5f + tx * 1.1f)
+        val ly = top + size * (0.5f - ty * 1.1f)
+        // Rings drift outward as the tilt grows, so even a slow tilt keeps the colours moving
+        val drift = motion * period * 1.5f
+        rainbowPaint.shader = RadialGradient(lx, ly, period, rainbow, null, Shader.TileMode.REPEAT).also { g ->
+            shaderMatrix.reset()
+            shaderMatrix.postScale(1f + drift / size, 1f + drift / size, lx, ly)
             g.setLocalMatrix(shaderMatrix)
         }
+        val ridge = period / 3.5f
+        ridgePaint.shader = RadialGradient(
+            lx, ly, ridge,
+            intArrayOf(Color.argb(255, 0, 0, 0), Color.argb(90, 0, 0, 0), Color.argb(255, 0, 0, 0)),
+            null, Shader.TileMode.REPEAT
+        )
         val foil = {
             canvas.drawRect(bounds, rainbowPaint)
             canvas.drawRect(bounds, ridgePaint)
