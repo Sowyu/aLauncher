@@ -403,6 +403,7 @@ class MainActivity : AppCompatActivity() {
             type = "application/json"
             putExtra(Intent.EXTRA_TITLE, fileName)
         }
+        expectReturn()
         performFullBackup.launch(createFileIntent)
     }
 
@@ -411,6 +412,7 @@ class MainActivity : AppCompatActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/json"
         }
+        expectReturn()
         performFullRestore.launch(openFileIntent)
     }
 
@@ -423,6 +425,7 @@ class MainActivity : AppCompatActivity() {
             type = "application/octet-stream"
             putExtra(Intent.EXTRA_TITLE, fileName)
         }
+        expectReturn()
         performThemeBackup.launch(createFileIntent)
     }
 
@@ -431,16 +434,19 @@ class MainActivity : AppCompatActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/octet-stream"
         }
+        expectReturn()
         performThemeRestore.launch(openFileIntent)
     }
 
     fun pickCustomFont() {
+        expectReturn()
         pickCustomFont.launch(arrayOf("*/*"))
     }
 
     /** Let the user pick the image the app drawer blurs behind itself. [onDone] gets true on success. */
     fun pickDrawerBackground(onDone: ((Boolean) -> Unit)? = null) {
         onDrawerBackgroundPicked = onDone
+        expectReturn()
         pickDrawerBackground.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
@@ -449,6 +455,7 @@ class MainActivity : AppCompatActivity() {
         if (checkDefault && isDefault) {
             return // Launcher is already the default home app
         }
+        expectReturn()
 
         if (context is Activity && !isDefault) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -478,19 +485,39 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    /**
+     * Set while a picker or screen we opened from settings is on top, so coming back lands on
+     * settings again instead of being reset to the home screen. The home button still resets.
+     */
+    private var expectingReturn = false
+
+    fun expectReturn() {
+        expectingReturn = true
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Home button: always go home
+        expectingReturn = false
+    }
+
     override fun onStop() {
-        backToHomeScreen()
+        if (!expectingReturn) backToHomeScreen()
         super.onStop()
     }
 
     override fun onResume() {
-        // Home pressed while the drawer is up: slide it away instead of cutting
-        backToHomeScreen(animateDrawer = true)
+        if (expectingReturn) {
+            expectingReturn = false
+        } else {
+            // Home pressed while the drawer is up: slide it away instead of cutting
+            backToHomeScreen(animateDrawer = true)
+        }
         super.onResume()
     }
 
     override fun onUserLeaveHint() {
-        backToHomeScreen()
+        if (!expectingReturn) backToHomeScreen()
         super.onUserLeaveHint()
     }
 

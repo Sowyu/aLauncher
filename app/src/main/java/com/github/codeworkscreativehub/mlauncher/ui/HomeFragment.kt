@@ -148,7 +148,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         drawerAnimator?.cancel()
         drawerAnimator = null
         super.onDestroyView()
-        _binding = null
     }
 
     override fun onStart() {
@@ -1293,12 +1292,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onDrawerDragEnd(velocityY: Float) {
         val fling = FLING_DP_PER_S * resources.displayMetrics.density
-        val open = when {
-            velocityY < -fling -> true
-            velocityY > fling -> false
-            else -> drawerProgress >= 0.5f
-        }
-        animateDrawerTo(open, velocityY)
+        animateDrawerTo(shouldSettleOpen(velocityY, drawerProgress, fling), velocityY)
     }
 
     private fun drawerTravel(): Float {
@@ -1373,5 +1367,12 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     companion object {
         private const val STATE_DRAWER_OPEN = "drawerOpen"
         private const val FLING_DP_PER_S = 600f
+
+        /** A fling decides by direction; a slow release snaps to whichever end is closer. */
+        internal fun shouldSettleOpen(velocityY: Float, progress: Float, flingPx: Float): Boolean = when {
+            velocityY < -flingPx -> true
+            velocityY > flingPx -> false
+            else -> progress >= 0.5f
+        }
     }
 }

@@ -105,9 +105,6 @@ import kotlin.math.roundToInt
 
 private const val MAIN = "main"
 
-/** Actions for features that are not part of this build. Compared by name so this file compiles with or without them. */
-private val removedActionNames = setOf("TogglePrivateSpace", "ShowWidgetPage", "ShowNotesManager", "ShowDigitalWellbeing")
-
 /**
  * Settings categories. [searchTerms] are the row titles on that screen; the search box on the
  * main screen looks through them. Keep them in step with the rows in the matching *Page() function.
@@ -1031,7 +1028,7 @@ class SettingsFragment : BaseFragment() {
                 action.getString()
             }
         ) {
-            val actions = Action.entries.filter { it.name !in removedActionNames }
+            val actions = Action.entries
             showOptions(title, actions.map { it.getString() }, actions.indexOf(action)) { i ->
                 action = actions[i]
                 setGesture(gesture.flag, actions[i])
@@ -1141,7 +1138,10 @@ class SettingsFragment : BaseFragment() {
                 title = getLocalizedString(R.string.st_app_info),
                 subtitle = getLocalizedString(R.string.st_app_info_sub),
                 showChevron = true
-            ) { openAppInfo(context, Process.myUserHandle(), BuildConfig.APPLICATION_ID) }
+            ) {
+                (activity as? MainActivity)?.expectReturn()
+                openAppInfo(context, Process.myUserHandle(), BuildConfig.APPLICATION_ID)
+            }
             SelectRow(
                 title = getLocalizedString(R.string.st_source_code),
                 value = "GitHub",
@@ -1218,6 +1218,7 @@ class SettingsFragment : BaseFragment() {
         // github_link is an HTML anchor; pull the URL out of it.
         val html = getLocalizedString(R.string.github_link)
         val url = Regex("href=\"([^\"]+)\"").find(html)?.groupValues?.get(1) ?: return
+        (activity as? MainActivity)?.expectReturn()
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
     }
 
@@ -1347,6 +1348,7 @@ class SettingsFragment : BaseFragment() {
 
     private fun openCustomIconSelection(target: IconCacheTarget) {
         val host = activity ?: return
+        (activity as? MainActivity)?.expectReturn()
         startActivity(Intent(host, CustomIconSelectionActivity::class.java).putExtra("IconCacheTarget", "$target"))
     }
 

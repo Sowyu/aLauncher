@@ -191,7 +191,7 @@ class AppDrawerFragment : BaseFragment() {
         // While searching, the list is laid out bottom-up so the best match sits right above the field
         appAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() {
-                if (layoutManager.reverseLayout) binding.appsRecyclerView.scrollToPosition(0)
+                if (layoutManager.reverseLayout) _binding?.appsRecyclerView?.scrollToPosition(0)
             }
         })
 
@@ -438,11 +438,12 @@ class AppDrawerFragment : BaseFragment() {
     }
 
     fun onDrawerOpening() {
-        viewModel.getAppList()
+        if (::viewModel.isInitialized) viewModel.getAppList()
     }
 
     fun onDrawerOpened() {
-        if (requireContext().hasSoftKeyboard()) binding.search.showKeyboard(delayMs = 0)
+        val b = _binding ?: return
+        if (requireContext().hasSoftKeyboard()) b.search.showKeyboard(delayMs = 0)
     }
 
     fun onDrawerClosing() {
