@@ -21,7 +21,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -786,9 +792,14 @@ class SettingsFragment : BaseFragment() {
 
         var bgRefresh by remember { mutableIntStateOf(0) }
         var bgSource by remember { mutableStateOf<DrawerBackground.Source?>(null) }
-        LaunchedEffect(bgRefresh) {
+        var bgThumb by remember { mutableStateOf<ImageBitmap?>(null) }
+        val thumbPx = (48 * resources.displayMetrics.density).toInt()
+        LaunchedEffect(bgRefresh, resumeTick) {
             // The first call may decode the system wallpaper, so stay off the main thread.
             bgSource = withContext(Dispatchers.IO) { DrawerBackground.currentSource(appContext) }
+            bgThumb = withContext(Dispatchers.IO) {
+                DrawerBackground.loadThumbnail(appContext, thumbPx)?.asImageBitmap()
+            }
         }
 
         SectionHeader(getLocalizedString(R.string.st_sec_search))
@@ -920,6 +931,18 @@ class SettingsFragment : BaseFragment() {
                     DrawerBackground.Source.SystemWallpaper -> getLocalizedString(R.string.st_drawer_bg_wallpaper)
                     DrawerBackground.Source.None -> getLocalizedString(R.string.st_drawer_bg_none)
                     null -> " "
+                },
+                trailing = bgThumb?.let { thumb ->
+                    {
+                        Image(
+                            bitmap = thumb,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+                    }
                 }
             ) {
                 val actions = buildList {

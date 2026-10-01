@@ -112,7 +112,7 @@
     <string name="st_drawer_background">Background image</string>
     <string name="st_drawer_bg_custom">Custom image</string>
     <string name="st_drawer_bg_wallpaper">System wallpaper</string>
-    <string name="st_drawer_bg_none">None, tap to choose a photo of your wallpaper</string>
+    <string name="st_drawer_bg_none">Pick your wallpaper to enable blur</string>
     <string name="st_drawer_bg_explainer">This phone does not share its wallpaper with apps, so pick the same photo here.</string>
     <string name="st_drawer_bg_choose">Choose image</string>
     <string name="st_drawer_bg_remove">Remove image</string>

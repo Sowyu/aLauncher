@@ -20,7 +20,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
-import android.widget.RelativeLayout
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.widget.SearchView
 import androidx.core.graphics.ColorUtils
@@ -35,7 +35,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.SimpleItemAnimator
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.hasSoftKeyboard
@@ -181,10 +180,8 @@ class AppDrawerFragment : BaseFragment() {
         val layoutManager = LinearLayoutManager(requireContext())
         binding.appsRecyclerView.apply {
             this.layoutManager = layoutManager
-            // match_parent in both directions, so content changes never resize the view
-            setHasFixedSize(true)
-            // No cross-fade when a row changes (menu open/close, rename)
-            (itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+            // No item animations: rows must never be left mid-fade while the drawer is hidden
+            itemAnimator = null
             adapter = appAdapter
         }
 
@@ -369,11 +366,9 @@ class AppDrawerFragment : BaseFragment() {
 
     /** Sidebar goes on the side opposite the text, and the list keeps clear of it. */
     private fun setupSidebarSide() {
-        val params = binding.sidebarContainer.layoutParams as RelativeLayout.LayoutParams
-        params.removeRule(RelativeLayout.ALIGN_PARENT_START)
-        params.removeRule(RelativeLayout.ALIGN_PARENT_END)
+        val params = binding.sidebarContainer.layoutParams as FrameLayout.LayoutParams
         val sidebarOnEnd = prefs.drawerAlignment == Constants.Gravity.Left
-        params.addRule(if (sidebarOnEnd) RelativeLayout.ALIGN_PARENT_END else RelativeLayout.ALIGN_PARENT_START)
+        params.gravity = if (sidebarOnEnd) Gravity.END else Gravity.START
         binding.sidebarContainer.layoutParams = params
 
         if (prefs.showAZSidebar) {
@@ -442,8 +437,15 @@ class AppDrawerFragment : BaseFragment() {
         if (b.drawerBackdrop.layerType != layer) b.drawerBackdrop.setLayerType(layer, null)
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     fun onDrawerOpening() {
         if (::viewModel.isInitialized) viewModel.getAppList()
+        val rv = _binding?.appsRecyclerView ?: return
+        // The list was filled while the drawer was hidden; make sure its rows are laid out now
+        if (::appsAdapter.isInitialized && appsAdapter.itemCount > 0 && rv.childCount == 0) {
+            appsAdapter.notifyDataSetChanged()
+        }
+        rv.requestLayout()
     }
 
     fun onDrawerOpened() {

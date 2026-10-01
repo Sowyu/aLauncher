@@ -1292,7 +1292,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onDrawerDragEnd(velocityY: Float) {
         val fling = FLING_DP_PER_S * resources.displayMetrics.density
-        animateDrawerTo(shouldSettleOpen(velocityY, drawerProgress, fling), velocityY)
+        val opening = dragStartProgress < 0.5f
+        animateDrawerTo(shouldSettleOpen(velocityY, drawerProgress, fling, opening), velocityY)
     }
 
     private fun drawerTravel(): Float {
@@ -1366,13 +1367,18 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     companion object {
         private const val STATE_DRAWER_OPEN = "drawerOpen"
-        private const val FLING_DP_PER_S = 600f
+        private const val FLING_DP_PER_S = 1000f
 
-        /** A fling decides by direction; a slow release snaps to whichever end is closer. */
-        internal fun shouldSettleOpen(velocityY: Float, progress: Float, flingPx: Float): Boolean = when {
+        /**
+         * A fling (|v| above [flingPx], negative = up) decides by direction. Otherwise the drawer
+         * favours the direction of the gesture: pulling it up only needs 35% of the way, pushing
+         * it down needs to get below 65%.
+         */
+        internal fun shouldSettleOpen(velocityY: Float, progress: Float, flingPx: Float, opening: Boolean): Boolean = when {
             velocityY < -flingPx -> true
             velocityY > flingPx -> false
-            else -> progress >= 0.5f
+            opening -> progress > 0.35f
+            else -> progress > 0.65f
         }
     }
 }

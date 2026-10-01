@@ -61,6 +61,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Share an image here to use it (blurred) behind the app drawer -->
+        <activity
+            android:name=".ui.SetDrawerBackgroundActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="Set as drawer background"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
         <!-- ONBOARDING ACTIVITY -->
         <activity
             android:name=".ui.onboarding.OnboardingActivity"

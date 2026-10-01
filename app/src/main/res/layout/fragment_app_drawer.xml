@@ -25,19 +25,19 @@
             android:background="@color/drawer_scrim_solid" />
     </FrameLayout>
 
-    <!-- The sliding panel -->
-    <RelativeLayout
+    <!-- The sliding panel: list on top, search pill at the bottom in thumb reach -->
+    <LinearLayout
         android:id="@+id/mainLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipChildren="false"
-        android:clipToPadding="false">
+        android:clipToPadding="false"
+        android:orientation="vertical">
 
         <com.github.creativecodecat.components.views.FontAppCompatTextView
             android:id="@+id/appDrawerTip"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
             android:layout_marginHorizontal="24dp"
             android:layout_marginTop="12dp"
             android:ellipsize="end"
@@ -51,8 +51,7 @@
             android:id="@+id/clearHomeButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/appDrawerTip"
-            android:layout_alignParentEnd="true"
+            android:layout_gravity="end"
             android:minHeight="48dp"
             android:gravity="center_vertical"
             android:paddingHorizontal="24dp"
@@ -60,12 +59,57 @@
             android:visibility="gone"
             app:theme="@style/AppSearchText" />
 
+        <FrameLayout
+            android:id="@+id/listArea"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginBottom="4dp"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false">
+
+            <com.github.creativecodecat.components.views.FontRecyclerView
+                android:id="@+id/appsRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:fadingEdgeLength="24dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:requiresFadingEdge="vertical"
+                android:scrollbars="none" />
+
+            <FrameLayout
+                android:id="@+id/sidebar_container"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="end"
+                android:layout_marginHorizontal="14dp"
+                android:layout_marginVertical="8dp"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:visibility="gone">
+
+                <com.github.codeworkscreativehub.mlauncher.ui.components.AZSidebarView
+                    android:id="@+id/azSidebar"
+                    android:layout_width="32dp"
+                    android:layout_height="match_parent" />
+            </FrameLayout>
+
+            <com.github.creativecodecat.components.views.FontAppCompatTextView
+                android:id="@+id/listEmptyHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/drawer_list_empty_hint"
+                android:textSize="20sp" />
+        </FrameLayout>
+
         <!-- Search sits at the bottom, in thumb reach, and rides on top of the keyboard -->
         <LinearLayout
             android:id="@+id/searchContainer"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_alignParentBottom="true"
             android:layout_marginHorizontal="16dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/bg_drawer_search"
@@ -119,48 +163,5 @@
                 android:visibility="gone"
                 app:srcCompat="@drawable/ic_browser" />
         </LinearLayout>
-
-        <com.github.creativecodecat.components.views.FontRecyclerView
-            android:id="@+id/appsRecyclerView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_above="@id/searchContainer"
-            android:layout_alignWithParentIfMissing="true"
-            android:layout_below="@id/clearHomeButton"
-            android:layout_marginBottom="4dp"
-            android:clipToPadding="false"
-            android:fadingEdgeLength="24dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:requiresFadingEdge="vertical"
-            android:scrollbars="none" />
-
-        <FrameLayout
-            android:id="@+id/sidebar_container"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_above="@id/searchContainer"
-            android:layout_alignWithParentIfMissing="true"
-            android:layout_below="@id/clearHomeButton"
-            android:layout_marginHorizontal="14dp"
-            android:layout_marginVertical="8dp"
-            android:clipChildren="false"
-            android:clipToPadding="false"
-            android:visibility="gone">
-
-            <com.github.codeworkscreativehub.mlauncher.ui.components.AZSidebarView
-                android:id="@+id/azSidebar"
-                android:layout_width="32dp"
-                android:layout_height="match_parent" />
-        </FrameLayout>
-
-        <com.github.creativecodecat.components.views.FontAppCompatTextView
-            android:id="@+id/listEmptyHint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="@string/drawer_list_empty_hint"
-            android:textSize="20sp" />
-
-    </RelativeLayout>
+    </LinearLayout>
 </com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout>

@@ -273,6 +273,7 @@ fun SelectRow(
     value: String? = null,
     subtitle: String? = null,
     showChevron: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)?,
 ) {
     val palette = SettingsTheme.palette
@@ -293,6 +294,10 @@ fun SelectRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 170.dp)
             )
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(16.dp))
+            trailing()
         }
         if (showChevron) {
             Spacer(Modifier.width(8.dp))

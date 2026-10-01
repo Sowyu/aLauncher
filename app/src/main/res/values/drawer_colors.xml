@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App drawer, light theme -->
-    <color name="drawer_scrim">#4DFBF6FA</color>
+    <color name="drawer_scrim">#33FBF6FA</color>
     <color name="drawer_scrim_solid">#E6FBF6FA</color>
     <color name="drawer_search_bg">#D9FFFFFF</color>
     <color name="drawer_search_icon">#6B5C6B</color>

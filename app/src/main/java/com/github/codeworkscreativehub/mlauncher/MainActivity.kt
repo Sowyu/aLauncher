@@ -273,7 +273,7 @@ class MainActivity : AppCompatActivity() {
             if (uri == null) return@registerForActivityResult
             lifecycleScope.launch {
                 val ok = withContext(Dispatchers.IO) { DrawerBackground.importImage(this@MainActivity, uri) }
-                if (!ok) showLongToast("Could not use that image")
+                showLongToast(if (ok) "Drawer background set" else "Could not use that image")
                 callback?.invoke(ok)
             }
         }

@@ -44,6 +44,13 @@ object DrawerBackground {
     /** Blur is rendered at this fraction of screen size, then scaled up by the ImageView. */
     private const val RENDER_SCALE = 0.5f
 
+    /**
+     * RenderEffect turns a radius r into a Gaussian sigma of about 0.58r, so the raw setting
+     * reads weak. Scale it so the default 40 gives a sigma of ~35px at full screen size:
+     * clearly frosted on a 1080x2392 photo, not just softened.
+     */
+    private const val STRENGTH = 1.5f
+
     enum class Source { CustomImage, SystemWallpaper, None }
 
     private data class Key(val w: Int, val h: Int, val radius: Int, val stamp: Long)
@@ -111,6 +118,26 @@ object DrawerBackground {
         }
     }
 
+    /** Small preview of the saved image for the settings row, or null. Blocking. */
+    fun loadThumbnail(context: Context, sizePx: Int): Bitmap? {
+        val file = customImageFile(context)
+        if (!file.exists()) return null
+        return try {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { d, info, _ ->
+                d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val s = sizePx.toFloat() / minOf(info.size.width, info.size.height)
+                if (s < 1f) {
+                    d.setTargetSize(
+                        (info.size.width * s).roundToInt().coerceAtLeast(1),
+                        (info.size.height * s).roundToInt().coerceAtLeast(1)
+                    )
+                }
+            }
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
     fun clearCustomImage(context: Context) {
         customImageFile(context).delete()
         invalidate()
@@ -130,7 +157,8 @@ object DrawerBackground {
             val rw = (w * RENDER_SCALE).roundToInt().coerceAtLeast(1)
             val rh = (h * RENDER_SCALE).roundToInt().coerceAtLeast(1)
             val cropped = centerCrop(src, rw, rh)
-            val r = radius * RENDER_SCALE
+            // Radius is in screen px; the bitmap is RENDER_SCALE of the screen, so scale it with it
+            val r = radius * STRENGTH * RENDER_SCALE
             when {
                 r < 1f -> cropped
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
