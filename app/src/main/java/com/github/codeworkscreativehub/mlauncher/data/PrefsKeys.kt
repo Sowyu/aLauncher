@@ -57,6 +57,7 @@ internal const val SHOW_DAY_OF_YEAR = "SHOW_DAY_OF_YEAR"
 internal const val HOME_LOCKED = "HOME_LOCKED"
 internal const val SETTINGS_LOCKED = "SETTINGS_LOCKED"
 internal const val HIDE_SEARCH_VIEW = "HIDE_SEARCH_VIEW"
+internal const val DRAWER_BLUR_RADIUS = "DRAWER_BLUR_RADIUS"
 
 // Notes / Messages
 internal const val AUTO_EXPAND_NOTES = "AUTO_EXPAND_NOTES"

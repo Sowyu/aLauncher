@@ -15,9 +15,11 @@ import android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import com.github.codeworkscreativehub.common.CrashHandler
@@ -27,6 +29,7 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Migration
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.ActivityMainBinding
+import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
@@ -47,6 +50,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -65,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var performWordsRestore: ActivityResultLauncher<Intent>
 
     private lateinit var pickCustomFont: ActivityResultLauncher<Array<String>>
+
+    private lateinit var pickDrawerBackground: ActivityResultLauncher<PickVisualMediaRequest>
+    private var onDrawerBackgroundPicked: ((Boolean) -> Unit)? = null
 
     private lateinit var setDefaultHomeScreenLauncher: ActivityResultLauncher<Intent>
 
@@ -222,9 +231,11 @@ class MainActivity : AppCompatActivity() {
 
                             val string = stringBuilder.toString()
                             val prefs = Prefs(applicationContext)
-                            prefs.clear()
-                            prefs.loadFromString(string)
-                            AppReloader.restartApp(applicationContext)
+                            if (prefs.loadFromString(string, clearFirst = true)) {
+                                AppReloader.restartApp(applicationContext)
+                            } else {
+                                showLongToast("This file is not a valid backup")
+                            }
                         }
                     } catch (e: FileNotFoundException) {
                         e.printStackTrace()
@@ -232,6 +243,9 @@ class MainActivity : AppCompatActivity() {
                     } catch (e: SecurityException) {
                         e.printStackTrace()
                         showLongToast("Permission denied")
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        showLongToast("Could not read that backup")
                     }
                 }
             }
@@ -269,6 +283,17 @@ class MainActivity : AppCompatActivity() {
         // Correct usage: Register in onAttach() to ensure it's done before the fragment's view is created
         pickCustomFont = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let { handleFontSelected(it) }
+        }
+
+        pickDrawerBackground = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            val callback = onDrawerBackgroundPicked
+            onDrawerBackgroundPicked = null
+            if (uri == null) return@registerForActivityResult
+            lifecycleScope.launch {
+                val ok = withContext(Dispatchers.IO) { DrawerBackground.importImage(this@MainActivity, uri) }
+                if (!ok) showLongToast("Could not use that image")
+                callback?.invoke(ok)
+            }
         }
 
         performThemeRestore = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -447,6 +472,12 @@ class MainActivity : AppCompatActivity() {
 
     fun pickCustomFont() {
         pickCustomFont.launch(arrayOf("*/*"))
+    }
+
+    /** Let the user pick the image the app drawer blurs behind itself. [onDone] gets true on success. */
+    fun pickDrawerBackground(onDone: ((Boolean) -> Unit)? = null) {
+        onDrawerBackgroundPicked = onDone
+        pickDrawerBackground.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     fun setDefaultHomeScreen(context: Context, checkDefault: Boolean = false) {

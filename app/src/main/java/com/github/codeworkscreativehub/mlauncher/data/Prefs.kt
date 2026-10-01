@@ -19,6 +19,14 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import java.lang.reflect.ParameterizedType
 
+/** Keys of features removed from this build. Restoring an old backup skips them. */
+private val REMOVED_KEY_PREFIXES = listOf(
+    "NOTES_", "BUBBLE_", "INPUT_MESSAGE", "WEATHER_", "WORD_LIST", "SHOW_WEATHER", "GPS_LOCATION",
+    "TEMP_UNIT", "SHOW_BATTERY", "BATTERY_", "SHOW_ALARM", "ALARM_", "SHOW_DAILY_WORD", "DAILY_WORD_",
+    "RECENT_", "APP_USAGE_STATS", "CLICK_APP_USAGE_ACTION", "SHOW_PRIVATE_SPACES", "HIDDEN_CONTACTS",
+    "PINNED_CONTACTS", "ICON_RAINBOW_COLORS", "AUTO_EXPAND_NOTES", "CLICK_EDIT_DELETE",
+)
+
 class Prefs(val context: Context) {
     // Build Moshi instance once (ideally a singleton)
     val moshi: Moshi = Moshi.Builder().build()
@@ -49,7 +57,8 @@ class Prefs(val context: Context) {
         return adapter.toJson(allPreferences)
     }
 
-    fun loadFromString(json: String) {
+    /** Load a full backup. Returns false (and leaves prefs untouched) if the JSON can't be read. */
+    fun loadFromString(json: String, clearFirst: Boolean = false): Boolean {
         val moshi = Moshi.Builder().build()
 
         val type = Types.newParameterizedType(
@@ -60,10 +69,18 @@ class Prefs(val context: Context) {
 
         val adapter = moshi.adapter<Map<String, Any?>>(type)
 
-        val all = adapter.fromJson(json) ?: emptyMap()
+        val all = try {
+            adapter.fromJson(json)
+        } catch (e: Exception) {
+            AppLogger.e("backup error", "Backup is not valid JSON", e)
+            null
+        } ?: return false
 
         prefsNormal.edit {
+            if (clearFirst) clear()
             for ((key, value) in all) {
+                // Features removed from this build: drop their data instead of carrying it around
+                if (REMOVED_KEY_PREFIXES.any { key.startsWith(it) }) continue
                 when (value) {
                     is String -> putString(key, value)
                     is Boolean -> putBoolean(key, value)
@@ -87,6 +104,7 @@ class Prefs(val context: Context) {
                 }
             }
         }
+        return true
     }
 
     fun saveToTheme(colorNames: List<String>): String {
@@ -476,6 +494,11 @@ class Prefs(val context: Context) {
     var settingsLocked: Boolean
         get() = getSetting(SETTINGS_LOCKED, false)
         set(value) = prefsNormal.edit { putBoolean(SETTINGS_LOCKED, value) }
+
+    /** Blur radius in px for the app drawer background (0 = no blur). */
+    var drawerBlurRadius: Int
+        get() = getSetting(DRAWER_BLUR_RADIUS, 40).coerceIn(0, 100)
+        set(value) = prefsNormal.edit { putInt(DRAWER_BLUR_RADIUS, value.coerceIn(0, 100)) }
 
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
@@ -942,23 +965,34 @@ class Prefs(val context: Context) {
     }
 
     // Function to fetch enum value from SharedPreferences
+    // Unknown names (e.g. actions removed in this build) and wrong types fall back to the default
     private inline fun <reified T : Enum<T>> getEnumSetting(key: String, defaultValue: T): T {
-        val enumName = prefsNormal.getString(key, defaultValue.name)
         return try {
+            val enumName = prefsNormal.getString(key, defaultValue.name)
             enumValueOf<T>(enumName ?: defaultValue.name)
-        } catch (_: IllegalArgumentException) {
+        } catch (_: Exception) {
             defaultValue
         }
     }
 
+    // A restored backup can store a value with the wrong type (JSON has one number type,
+    // so 1.0f comes back as an Int). Coerce numbers, otherwise fall back to the default.
     private inline fun <reified T> getSetting(key: String, defaultValue: T): T {
-        // Otherwise, fetch from SharedPreferences
-        val result = when (defaultValue) {
-            is Int -> prefsNormal.getInt(key, defaultValue)
-            is Boolean -> prefsNormal.getBoolean(key, defaultValue)
-            is String -> prefsNormal.getString(key, defaultValue) ?: defaultValue
-            is Float -> prefsNormal.getFloat(key, defaultValue)
-            else -> throw IllegalArgumentException("Unsupported type")
+        val result: Any? = try {
+            when (defaultValue) {
+                is Int -> prefsNormal.getInt(key, defaultValue)
+                is Boolean -> prefsNormal.getBoolean(key, defaultValue)
+                is String -> prefsNormal.getString(key, defaultValue) ?: defaultValue
+                is Float -> prefsNormal.getFloat(key, defaultValue)
+                else -> throw IllegalArgumentException("Unsupported type")
+            }
+        } catch (_: ClassCastException) {
+            val raw = prefsNormal.all[key]
+            when {
+                defaultValue is Int && raw is Number -> raw.toInt()
+                defaultValue is Float && raw is Number -> raw.toFloat()
+                else -> defaultValue
+            }
         }
 
         return result as T
