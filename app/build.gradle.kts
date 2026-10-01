@@ -195,6 +195,7 @@ dependencies {
     implementation(libs.activity.compose)
 
     implementation(libs.compose.material)
+    implementation(libs.compose.material3)
     implementation(libs.compose.android)
     implementation(libs.compose.animation)
     implementation(libs.compose.ui)
