@@ -8,7 +8,7 @@ import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import android.graphics.drawable.BitmapDrawable
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Vibrator
@@ -22,6 +22,7 @@ import android.text.style.ImageSpan
 import android.text.style.SuperscriptSpan
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -80,6 +81,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.updateHomeWidget
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
 import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
 import com.github.codeworkscreativehub.mlauncher.listener.GestureAdapter
+import com.github.codeworkscreativehub.mlauncher.listener.GestureManager
 import com.github.codeworkscreativehub.mlauncher.listener.NotificationDotManager
 import com.github.codeworkscreativehub.mlauncher.services.ActionService
 import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
@@ -147,6 +149,16 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         setupEditMode()
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateStickerActive()
+    }
+
+    override fun onPause() {
+        _binding?.clockSticker?.setActive(false)
+        super.onPause()
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_DRAWER_OPEN, drawerTargetOpen && drawerProgress > 0f)
@@ -167,6 +179,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         // Update dynamic UI elements
         updateTimeAndInfo()
+        binding.clock.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> positionSticker() }
         updateClockSticker()
         refreshIconsIfStale()
     }
@@ -191,46 +204,72 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private var stickerSizeDp = -1
 
     /**
-     * Optional image right of the clock (Settings > Clock & date). Drawn with nearest-neighbour
-     * scaling so pixel art stays crisp, and nudged so it centres on the digits rather than on the
-     * text box (which carries extra space for descenders).
+     * Optional sticker (Settings > Clock & date) slapped onto the bottom-right of the clock.
+     * The clock layout is untouched; the sticker floats on top, anchored to the clock's bounds.
      */
     private fun updateClockSticker() {
         val b = _binding ?: return
         val ctx = context ?: return
+        if (!prefs.showClock) {
+            b.clockSticker.isVisible = false
+            return
+        }
         val stamp = ClockSticker.stamp(ctx)
         val sizeDp = prefs.clockStickerSize
+        b.clockSticker.holoEnabled = prefs.clockStickerHolo
         if (stamp == stickerStamp && sizeDp == stickerSizeDp && (stamp == 0L) == !b.clockSticker.isVisible) return
         stickerStamp = stamp
         stickerSizeDp = sizeDp
 
         val bitmap = if (stamp != 0L) ClockSticker.load(ctx) else null
+        b.clockSticker.setSprite(bitmap)
         if (bitmap == null) {
-            b.clockSticker.setImageDrawable(null)
             b.clockSticker.isVisible = false
             return
         }
-        val drawable = BitmapDrawable(resources, bitmap).apply {
-            isFilterBitmap = false
-            paint.isAntiAlias = false
-        }
-        b.clockSticker.setImageDrawable(drawable)
         val px = (sizeDp * resources.displayMetrics.density).toInt()
         b.clockSticker.layoutParams = b.clockSticker.layoutParams.apply {
             width = px
             height = px
         }
         b.clockSticker.isVisible = true
-        b.clock.doOnLayout { centreStickerOnDigits() }
+        b.clock.doOnLayout { positionSticker() }
     }
 
-    private fun centreStickerOnDigits() {
+    /**
+     * Centre at ~90% across the clock and ~60% down its digits, so it overlaps the last digit and
+     * pokes out to the right. Fractions of the clock size, so it follows size and alignment.
+     * Clamped to stay on screen.
+     */
+    private fun positionSticker() {
         val b = _binding ?: return
+        val sticker = b.clockSticker
+        if (!sticker.isVisible || !b.clock.isShown) return
         val clock = b.clock
-        val bounds = android.graphics.Rect()
-        clock.paint.getTextBounds("0", 0, 1, bounds)
-        val digitsCentre = clock.baseline + (bounds.top + bounds.bottom) / 2f
-        b.clockSticker.translationY = digitsCentre - clock.height / 2f
+        val loc = IntArray(2)
+        val parentLoc = IntArray(2)
+        clock.getLocationInWindow(loc)
+        b.mainLayout.getLocationInWindow(parentLoc)
+        val clockLeft = (loc[0] - parentLoc[0]).toFloat()
+        val clockTop = (loc[1] - parentLoc[1]).toFloat()
+
+        val digits = Rect()
+        clock.paint.getTextBounds("0", 0, 1, digits)
+        val digitsTop = clockTop + clock.baseline + digits.top
+        val digitsHeight = digits.height().toFloat()
+
+        val size = sticker.layoutParams.width.toFloat()
+        val cx = clockLeft + clock.width * 0.90f
+        val cy = digitsTop + digitsHeight * 0.60f
+        val margin = 8 * resources.displayMetrics.density
+        val maxX = b.mainLayout.width - size - margin
+        sticker.translationX = (cx - size / 2f).coerceIn(margin, maxOf(margin, maxX))
+        sticker.translationY = (cy - size / 2f).coerceAtLeast(margin)
+    }
+
+    private fun updateStickerActive() {
+        val b = _binding ?: return
+        b.clockSticker.setActive(isResumed && drawerProgress == 0f)
     }
 
     private fun updateUIFromPreferences() {
@@ -461,6 +500,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
             showClock.observe(viewLifecycleOwner) {
                 binding.clockRow.isVisible = it
+                // The sticker belongs to the clock
+                stickerStamp = -1L
+                if (it) updateClockSticker() else binding.clockSticker.isVisible = false
             }
 
             clockAlignment.observe(viewLifecycleOwner) { clockGravity ->
@@ -1235,11 +1277,32 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         })
     }
 
+    /** True if [x] (row coordinates) falls on the label or its icon, with a little slack. */
+    private fun isOnLabel(row: View, x: Float): Boolean {
+        val tv = row as? TextView ?: return true
+        val textW = tv.paint.measureText(tv.text?.toString() ?: "")
+        val icons = tv.compoundDrawables.filterNotNull().sumOf { it.bounds.width() } +
+            (if (tv.compoundDrawables.any { it != null }) tv.compoundDrawablePadding else 0)
+        val content = textW + icons
+        val slack = 16 * resources.displayMetrics.density
+        val w = tv.width.toFloat()
+        val (start, end) = when (tv.gravity and Gravity.HORIZONTAL_GRAVITY_MASK) {
+            Gravity.RIGHT, Gravity.END -> (w - tv.paddingRight - content) to (w - tv.paddingRight)
+            Gravity.CENTER_HORIZONTAL -> ((w - content) / 2f) to ((w + content) / 2f)
+            else -> tv.paddingLeft.toFloat() to (tv.paddingLeft + content)
+        }
+        return x >= start - slack && x <= end + slack
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     private fun View.getHomeAppsGestureListener() {
-        this.attachGestureManager(requireContext(), object : GestureAdapter() {
+        val row = this
+        var downX = 0f
+        val manager = GestureManager(requireContext(), object : GestureAdapter() {
 
             override fun onLongPress() {
-                textOnLongClick(this@getHomeAppsGestureListener)
+                // Rows span the full width for easy tapping; holding the empty part edits the list
+                if (isOnLabel(row, downX)) textOnLongClick(row) else enterEditMode()
             }
 
             override fun onSingleTap() {
@@ -1310,6 +1373,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                 CrashHandler.logUserAction("SwipeDown Long Gesture")
             }
         })
+        setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) downX = event.x
+            manager.onTouchEvent(event)
+        }
     }
 
 
@@ -1376,14 +1443,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val apps = (0 until count).map { prefs.getHomeAppModel(it) }.toMutableList()
         apps.add(to, apps.removeAt(from))
         apps.forEachIndexed { i, app -> prefs.setHomeAppModel(i, app) }
-
-        val b = _binding ?: return
-        b.homeAppsLayout.removeAllViews()
-        updateAppCount(count)
-        viewModel.homeAppsAlignment.value?.let { (gravity, _) ->
-            b.homeAppsLayout.children.forEach { (it as? TextView)?.gravity = gravity.value() }
-        }
-        b.homeAppsLayout.onRowsRebuilt()
+        // The views were already moved by the list itself; nothing to rebuild
         context?.let { updateHomeWidget(it) }
     }
 
@@ -1516,6 +1576,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val visible = drawerProgress > 0f
         if (b.drawerContainer.isVisible != visible) {
             b.drawerContainer.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+            // No foil animation behind the drawer
+            b.clockSticker.setActive(!visible && isResumed)
         }
         drawerFragment?.applyReveal(drawerProgress, drawerTravel().toInt())
 
@@ -1570,6 +1632,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     private fun onDrawerSettled(open: Boolean) {
+        updateStickerActive()
         val drawer = drawerFragment ?: return
         if (open) drawer.onDrawerOpened() else drawer.onDrawerClosed()
     }

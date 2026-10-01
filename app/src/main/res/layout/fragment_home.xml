@@ -58,15 +58,6 @@
                         android:layout_height="wrap_content"
                         android:textSize="@dimen/time_size"
                         tools:text="02:34" />
-
-                    <ImageView
-                        android:id="@+id/clockSticker"
-                        android:layout_width="96dp"
-                        android:layout_height="96dp"
-                        android:layout_marginStart="12dp"
-                        android:importantForAccessibility="no"
-                        android:scaleType="fitCenter"
-                        android:visibility="gone" />
                 </LinearLayout>
 
 
@@ -121,6 +112,15 @@
         android:paddingHorizontal="20dp"
         android:paddingTop="100dp"
         android:paddingBottom="30dp" />
+
+    <!-- Sticker slapped onto the clock; positioned from the clock's bounds in code -->
+    <com.github.codeworkscreativehub.mlauncher.ui.components.HoloStickerView
+        android:id="@+id/clockSticker"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|start"
+        android:rotation="-8"
+        android:visibility="gone" />
 
     <com.github.creativecodecat.components.views.FontAppCompatTextView
         android:id="@+id/homeScreenPager"

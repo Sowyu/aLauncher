@@ -24,7 +24,7 @@ class ReorderableLinearLayout @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : LinearLayout(context, attrs) {
 
-    /** Called on drop with child indices; the host persists and rebuilds the rows. */
+    /** Called on drop with child indices, after the views are already in their new order. Persist only. */
     var onReorder: ((from: Int, to: Int) -> Unit)? = null
 
     var editMode = false
@@ -211,13 +211,22 @@ class ReorderableLinearLayout @JvmOverloads constructor(
             clearDragState()
             return
         }
-        // Settle the lifted row into its slot, then let the host persist and rebuild
-        val landing = (to - from) * rowStep
-        row.animate().translationY(landing).scaleX(1f).scaleY(1f).alpha(1f).setDuration(140)
-            .withEndAction {
-                clearDragState()
-                onReorder?.invoke(from, to)
-            }.start()
+        // Commit at once: move the view into its new slot and keep it visually where the finger
+        // left it, then let it glide home. The next drag can start immediately.
+        val visualOffset = row.translationY - (to - from) * rowStep
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            c.animate().cancel()
+            c.translationY = 0f
+        }
+        clearDragState()
+        removeViewAt(from)
+        addView(row, to)
+        // Rows are identified by slot index (the host launches/edits by view id)
+        for (i in 0 until childCount) getChildAt(i).id = i
+        row.translationY = visualOffset
+        row.animate().translationY(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(160).start()
+        onReorder?.invoke(from, to)
     }
 
     private fun cancelDrag() {

@@ -135,7 +135,7 @@ private enum class Page(
     Clock(
         R.string.st_cat_clock, R.string.st_cat_clock_sub, R.drawable.ic_alarm_clock, listOf(
             R.string.st_show_clock, R.string.st_show_ampm, R.string.st_clock_size, R.string.st_clock_colour,
-            R.string.st_clock_alignment, R.string.st_sticker, R.string.st_sticker_size, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
+            R.string.st_clock_alignment, R.string.st_sticker, R.string.st_sticker_size, R.string.st_sticker_holo, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
             R.string.st_date_colour, R.string.st_date_alignment, R.string.st_clock_tap, R.string.st_date_tap,
         )
     ),
@@ -692,6 +692,15 @@ class SettingsFragment : BaseFragment() {
                         prefs.clockStickerSize = stickerSize
                     }
                 )
+                var holo by remember { mutableStateOf(prefs.clockStickerHolo) }
+                SwitchRow(
+                    title = getLocalizedString(R.string.st_sticker_holo),
+                    subtitle = getLocalizedString(R.string.st_sticker_holo_sub),
+                    checked = holo
+                ) {
+                    holo = it
+                    prefs.clockStickerHolo = it
+                }
             }
         }
 
