@@ -43,13 +43,31 @@
                 android:orientation="vertical"
                 tools:visibility="visible">
 
-                <com.github.creativecodecat.components.views.FontTextClock
-                    android:id="@+id/clock"
-                    style="@style/TextDefaultStyle"
+                <!-- Clock plus an optional sticker image to its right; the pair is aligned as one -->
+                <LinearLayout
+                    android:id="@+id/clockRow"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="@dimen/time_size"
-                    tools:text="02:34" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.github.creativecodecat.components.views.FontTextClock
+                        android:id="@+id/clock"
+                        style="@style/TextDefaultStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="@dimen/time_size"
+                        tools:text="02:34" />
+
+                    <ImageView
+                        android:id="@+id/clockSticker"
+                        android:layout_width="96dp"
+                        android:layout_height="96dp"
+                        android:layout_marginStart="12dp"
+                        android:importantForAccessibility="no"
+                        android:scaleType="fitCenter"
+                        android:visibility="gone" />
+                </LinearLayout>
 
 
                 <com.github.creativecodecat.components.views.FontTextClock

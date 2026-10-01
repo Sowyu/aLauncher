@@ -26,6 +26,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Box
@@ -72,6 +73,7 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.Action
 import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentSettingsBinding
+import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
 import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
@@ -132,7 +134,7 @@ private enum class Page(
     Clock(
         R.string.st_cat_clock, R.string.st_cat_clock_sub, R.drawable.ic_alarm_clock, listOf(
             R.string.st_show_clock, R.string.st_show_ampm, R.string.st_clock_size, R.string.st_clock_colour,
-            R.string.st_clock_alignment, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
+            R.string.st_clock_alignment, R.string.st_sticker, R.string.st_sticker_size, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
             R.string.st_date_colour, R.string.st_date_alignment, R.string.st_clock_tap, R.string.st_date_tap,
         )
     ),
@@ -618,6 +620,64 @@ class SettingsFragment : BaseFragment() {
                     prefs.clockAlignment = clockAlignment
                     viewModel.updateClockAlignment(clockAlignment)
                 }
+            }
+        }
+
+        // Sticker: an image (e.g. pixel art) to the right of the clock
+        val appContext = LocalContext.current.applicationContext
+        var stickerRefresh by remember { mutableIntStateOf(0) }
+        var sticker by remember { mutableStateOf<ImageBitmap?>(null) }
+        var stickerSize by remember { mutableIntStateOf(prefs.clockStickerSize) }
+        LaunchedEffect(stickerRefresh, resumeTick) {
+            sticker = withContext(Dispatchers.IO) { ClockSticker.load(appContext)?.asImageBitmap() }
+        }
+        SectionHeader(getLocalizedString(R.string.st_sec_sticker))
+        SettingsCard {
+            SelectRow(
+                title = getLocalizedString(R.string.st_sticker),
+                subtitle = getLocalizedString(if (sticker != null) R.string.st_sticker_set else R.string.st_sticker_none),
+                trailing = sticker?.let { img ->
+                    {
+                        Image(
+                            bitmap = img,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            filterQuality = FilterQuality.None,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                }
+            ) {
+                val actions = buildList {
+                    add(DialogAction(getLocalizedString(R.string.st_sticker_choose)) {
+                        (activity as? MainActivity)?.pickClockSticker { stickerRefresh++ }
+                    })
+                    if (ClockSticker.has(appContext)) {
+                        add(DialogAction(getLocalizedString(R.string.st_sticker_remove)) {
+                            ClockSticker.clear(appContext)
+                            stickerRefresh++
+                        })
+                    }
+                }
+                dialog = {
+                    ActionsDialog(
+                        title = getLocalizedString(R.string.st_sticker),
+                        actions = actions,
+                        onDismiss = { dialog = null }
+                    )
+                }
+            }
+            if (sticker != null) {
+                SliderRow(
+                    title = getLocalizedString(R.string.st_sticker_size),
+                    value = stickerSize.toFloat(),
+                    range = 32f..240f,
+                    format = { "${it.roundToInt()} dp" },
+                    onCommit = {
+                        stickerSize = it.roundToInt()
+                        prefs.clockStickerSize = stickerSize
+                    }
+                )
             }
         }
 

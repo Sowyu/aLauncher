@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
 import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import kotlin.concurrent.thread
 
@@ -14,7 +15,11 @@ import kotlin.concurrent.thread
  * behind the app drawer. No UI beyond a toast. Needed because this phone won't let the launcher
  * read the wallpaper itself.
  */
-class SetDrawerBackgroundActivity : Activity() {
+open class SetDrawerBackgroundActivity : Activity() {
+
+    /** Store the shared image. Runs on a worker thread. */
+    protected open fun importImage(uri: Uri): Boolean = DrawerBackground.importImage(this, uri)
+    protected open val doneMessage = "Drawer background set"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,11 +32,11 @@ class SetDrawerBackgroundActivity : Activity() {
         val app = applicationContext
         // Import on a worker, but keep this activity (and its URI grant) alive until it's done
         thread(name = "drawer-bg-import") {
-            val ok = DrawerBackground.importImage(this, uri)
+            val ok = importImage(uri)
             runOnUiThread {
                 Toast.makeText(
                     app,
-                    if (ok) "Drawer background set" else "Could not use that image",
+                    if (ok) doneMessage else "Could not use that image",
                     Toast.LENGTH_SHORT
                 ).show()
                 finish()
@@ -48,4 +53,10 @@ class SetDrawerBackgroundActivity : Activity() {
             intent.getParcelableExtra(Intent.EXTRA_STREAM)
         } ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
     }
+}
+
+/** Share target "Set as clock sticker": the image shown next to the home clock. */
+class SetClockStickerActivity : SetDrawerBackgroundActivity() {
+    override fun importImage(uri: Uri): Boolean = ClockSticker.import(this, uri)
+    override val doneMessage = "Clock sticker set"
 }

@@ -8,6 +8,7 @@ import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Vibrator
@@ -35,6 +36,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.children
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.ViewCompat
@@ -63,6 +65,7 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.Action
 import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentHomeBinding
+import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
 import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper.getSafeAppIcon
@@ -163,6 +166,53 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         // Update dynamic UI elements
         updateTimeAndInfo()
+        updateClockSticker()
+    }
+
+    private var stickerStamp = -1L
+    private var stickerSizeDp = -1
+
+    /**
+     * Optional image right of the clock (Settings > Clock & date). Drawn with nearest-neighbour
+     * scaling so pixel art stays crisp, and nudged so it centres on the digits rather than on the
+     * text box (which carries extra space for descenders).
+     */
+    private fun updateClockSticker() {
+        val b = _binding ?: return
+        val ctx = context ?: return
+        val stamp = ClockSticker.stamp(ctx)
+        val sizeDp = prefs.clockStickerSize
+        if (stamp == stickerStamp && sizeDp == stickerSizeDp && (stamp == 0L) == !b.clockSticker.isVisible) return
+        stickerStamp = stamp
+        stickerSizeDp = sizeDp
+
+        val bitmap = if (stamp != 0L) ClockSticker.load(ctx) else null
+        if (bitmap == null) {
+            b.clockSticker.setImageDrawable(null)
+            b.clockSticker.isVisible = false
+            return
+        }
+        val drawable = BitmapDrawable(resources, bitmap).apply {
+            isFilterBitmap = false
+            paint.isAntiAlias = false
+        }
+        b.clockSticker.setImageDrawable(drawable)
+        val px = (sizeDp * resources.displayMetrics.density).toInt()
+        b.clockSticker.layoutParams = b.clockSticker.layoutParams.apply {
+            width = px
+            height = px
+        }
+        b.clockSticker.isVisible = true
+        b.clock.doOnLayout { centreStickerOnDigits() }
+    }
+
+    private fun centreStickerOnDigits() {
+        val b = _binding ?: return
+        val clock = b.clock
+        val bounds = android.graphics.Rect()
+        clock.paint.getTextBounds("0", 0, 1, bounds)
+        val digitsCentre = clock.baseline + (bounds.top + bounds.bottom) / 2f
+        b.clockSticker.translationY = digitsCentre - clock.height / 2f
     }
 
     private fun updateUIFromPreferences() {
@@ -392,15 +442,15 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                 updateTimeAndInfo()
             }
             showClock.observe(viewLifecycleOwner) {
-                binding.clock.isVisible = it
+                binding.clockRow.isVisible = it
             }
 
             clockAlignment.observe(viewLifecycleOwner) { clockGravity ->
                 binding.clock.gravity = clockGravity.value()
 
-                // Set layout_gravity to align the TextClock (clock) within the parent (LinearLayout)
-                binding.clock.layoutParams =
-                    (binding.clock.layoutParams as LinearLayout.LayoutParams).apply {
+                // Align the clock row (clock + optional sticker) within the parent LinearLayout
+                binding.clockRow.layoutParams =
+                    (binding.clockRow.layoutParams as LinearLayout.LayoutParams).apply {
                         gravity = clockGravity.value()
                     }
             }

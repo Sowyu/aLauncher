@@ -30,6 +30,7 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Migration
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.ActivityMainBinding
+import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
 import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper
@@ -72,6 +73,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var pickDrawerBackground: ActivityResultLauncher<Intent>
     private var onDrawerBackgroundPicked: ((Boolean) -> Unit)? = null
+
+    /** What the shared single-image picker is choosing for. */
+    private enum class ImageTarget { DrawerBackground, ClockSticker }
+    private var imageTarget = ImageTarget.DrawerBackground
 
     private lateinit var setDefaultHomeScreenLauncher: ActivityResultLauncher<Intent>
 
@@ -273,8 +278,15 @@ class MainActivity : AppCompatActivity() {
             val uri = result.data?.data ?: result.data?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
             if (result.resultCode != RESULT_OK || uri == null) return@registerForActivityResult
             lifecycleScope.launch {
-                val ok = withContext(Dispatchers.IO) { DrawerBackground.importImage(this@MainActivity, uri) }
-                showLongToast(if (ok) "Drawer background set" else "Could not use that image")
+                val target = imageTarget
+                val ok = withContext(Dispatchers.IO) {
+                    when (target) {
+                        ImageTarget.DrawerBackground -> DrawerBackground.importImage(this@MainActivity, uri)
+                        ImageTarget.ClockSticker -> ClockSticker.import(this@MainActivity, uri)
+                    }
+                }
+                val done = if (target == ImageTarget.ClockSticker) "Clock sticker set" else "Drawer background set"
+                showLongToast(if (ok) done else "Could not use that image")
                 callback?.invoke(ok)
             }
         }
@@ -445,7 +457,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Let the user pick the image the app drawer blurs behind itself. [onDone] gets true on success. */
-    fun pickDrawerBackground(onDone: ((Boolean) -> Unit)? = null) {
+    fun pickDrawerBackground(onDone: ((Boolean) -> Unit)? = null) = pickImage(ImageTarget.DrawerBackground, onDone)
+
+    /** Let the user pick the image shown next to the clock. [onDone] gets true on success. */
+    fun pickClockSticker(onDone: ((Boolean) -> Unit)? = null) = pickImage(ImageTarget.ClockSticker, onDone)
+
+    private fun pickImage(target: ImageTarget, onDone: ((Boolean) -> Unit)?) {
+        imageTarget = target
         onDrawerBackgroundPicked = onDone
         expectReturn()
         // Plain single-select photo picker: one tap picks and returns, no "Done" step

@@ -379,6 +379,11 @@ class Prefs(val context: Context) {
         get() = getSetting(DRAWER_BLUR_RADIUS, 40).coerceIn(0, 100)
         set(value) = prefsNormal.edit { putInt(DRAWER_BLUR_RADIUS, value.coerceIn(0, 100)) }
 
+    /** Size of the image next to the clock, in dp. */
+    var clockStickerSize: Int
+        get() = getSetting(CLOCK_STICKER_SIZE, 96).coerceIn(32, 240)
+        set(value) = prefsNormal.edit { putInt(CLOCK_STICKER_SIZE, value.coerceIn(32, 240)) }
+
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
         set(value) = prefsNormal.edit { putBoolean(HIDE_SEARCH_VIEW, value) }

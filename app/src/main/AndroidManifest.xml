@@ -76,6 +76,21 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+        <!-- Share an image here to show it next to the home clock -->
+        <activity
+            android:name=".ui.SetClockStickerActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="Set as clock sticker"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
         <!-- ONBOARDING ACTIVITY -->
         <activity
             android:name=".ui.onboarding.OnboardingActivity"

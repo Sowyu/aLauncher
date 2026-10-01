@@ -176,4 +176,12 @@
     <string name="st_lock_settings">Lock settings</string>
     <string name="st_lock_settings_sub">Ask for fingerprint or PIN to open settings</string>
     <string name="st_haptic">Haptic feedback</string>
+    <!-- Clock sticker -->
+    <string name="st_sec_sticker">Sticker</string>
+    <string name="st_sticker">Sticker image</string>
+    <string name="st_sticker_set">Shown to the right of the clock</string>
+    <string name="st_sticker_none">None, add an image next to the clock</string>
+    <string name="st_sticker_choose">Choose image</string>
+    <string name="st_sticker_remove">Remove sticker</string>
+    <string name="st_sticker_size">Sticker size</string>
 </resources>
