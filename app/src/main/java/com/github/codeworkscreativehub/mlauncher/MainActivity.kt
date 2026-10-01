@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import com.github.codeworkscreativehub.common.CrashHandler
 import com.github.codeworkscreativehub.common.LauncherLocaleManager
 import com.github.codeworkscreativehub.common.showLongToast
@@ -36,6 +37,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.ismlauncherDefault
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
 import com.github.codeworkscreativehub.mlauncher.helper.utils.SystemBarObserver
+import com.github.codeworkscreativehub.mlauncher.ui.HomeFragment
 import com.github.codeworkscreativehub.mlauncher.ui.onboarding.OnboardingActivity
 import org.xmlpull.v1.XmlPullParser
 import java.io.BufferedReader
@@ -76,17 +78,9 @@ class MainActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_MENU -> {
-                when (navController.currentDestination?.id) {
-                    R.id.mainFragment -> {
-                        this.findNavController(R.id.nav_host_fragment)
-                            .navigate(R.id.action_mainFragment_to_appListFragment)
-                        true
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                val home = homeFragment() ?: return false
+                home.openDrawer()
+                true
             }
 
             KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_B, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_D,
@@ -96,19 +90,11 @@ class MainActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_R, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_T,
             KeyEvent.KEYCODE_U, KeyEvent.KEYCODE_V, KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_X,
             KeyEvent.KEYCODE_Y, KeyEvent.KEYCODE_Z -> {
-                when (navController.currentDestination?.id) {
-                    R.id.mainFragment -> {
-                        val bundle = Bundle()
-                        bundle.putInt("letterKeyCode", keyCode) // Pass the letter key code
-                        this.findNavController(R.id.nav_host_fragment)
-                            .navigate(R.id.action_mainFragment_to_appListFragment, bundle)
-                        true
-                    }
-
-                    else -> {
-                        false
-                    }
-                }
+                // Typing on a hardware keyboard at home starts a drawer search
+                val home = homeFragment() ?: return false
+                if (home.isDrawerFullyOpen()) return super.onKeyDown(keyCode, event)
+                home.openDrawer(query = ('a' + (keyCode - KeyEvent.KEYCODE_A)).toString())
+                true
             }
 
             KeyEvent.KEYCODE_ESCAPE -> {
@@ -136,9 +122,9 @@ class MainActivity : AppCompatActivity() {
 
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                // At home there is nowhere to go back to; elsewhere pop one screen
                 if (navController.currentDestination?.id != R.id.mainFragment) {
-                    isEnabled = false // Temporarily disable callback
-                    onBackPressedDispatcher.onBackPressed() // Perform default back action
+                    navController.popBackStack()
                 }
             }
         }
@@ -498,7 +484,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onResume() {
-        backToHomeScreen()
+        // Home pressed while the drawer is up: slide it away instead of cutting
+        backToHomeScreen(animateDrawer = true)
         super.onResume()
     }
 
@@ -507,11 +494,19 @@ class MainActivity : AppCompatActivity() {
         super.onUserLeaveHint()
     }
 
-    private fun backToHomeScreen() {
+    private fun backToHomeScreen(animateDrawer: Boolean = false) {
         // Whenever home button is pressed or user leaves the launcher,
-        // pop all the fragments except main
+        // pop all the fragments except main, and put the drawer away
         if (navController.currentDestination?.id != R.id.mainFragment)
             navController.popBackStack(R.id.mainFragment, false)
+        homeFragment()?.closeDrawer(animate = animateDrawer)
+    }
+
+    /** The home screen fragment, if it is the current destination. */
+    private fun homeFragment(): HomeFragment? {
+        if (!::navController.isInitialized || navController.currentDestination?.id != R.id.mainFragment) return null
+        val navHost = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        return navHost?.childFragmentManager?.primaryNavigationFragment as? HomeFragment
     }
 
     private fun migration() {

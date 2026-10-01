@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App drawer, dark theme: plum-black scrim over the blurred wallpaper -->
+    <color name="drawer_scrim">#4D120E1A</color>
+    <color name="drawer_scrim_solid">#D9120E1A</color>
+    <color name="drawer_search_bg">#D11E1826</color>
+    <color name="drawer_search_icon">#B8A9B8</color>
+</resources>

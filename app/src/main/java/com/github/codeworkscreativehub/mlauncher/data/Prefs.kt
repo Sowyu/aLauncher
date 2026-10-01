@@ -294,7 +294,7 @@ class Prefs(val context: Context) {
 
     var drawerAlignment: Gravity
         get() {
-            return getEnumSetting(DRAWER_ALIGNMENT, Gravity.Right)
+            return getEnumSetting(DRAWER_ALIGNMENT, Gravity.Left)
         }
         set(value) = prefsNormal.edit { putString(DRAWER_ALIGNMENT, value.name) }
 

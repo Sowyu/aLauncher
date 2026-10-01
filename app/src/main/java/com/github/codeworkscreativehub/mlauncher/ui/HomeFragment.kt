@@ -25,6 +25,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import android.view.animation.PathInterpolator
+import androidx.activity.BackEventCompat
+import androidx.activity.OnBackPressedCallback
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -69,10 +75,12 @@ import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
 import com.github.codeworkscreativehub.mlauncher.listener.GestureAdapter
 import com.github.codeworkscreativehub.mlauncher.listener.NotificationDotManager
 import com.github.codeworkscreativehub.mlauncher.services.ActionService
+import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListener {
+class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListener, DrawerHost {
 
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
@@ -127,6 +135,20 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         // Update view appearance/settings based on prefs
         updateUIFromPreferences()
+
+        setupDrawer(savedInstanceState)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_DRAWER_OPEN, drawerTargetOpen && drawerProgress > 0f)
+    }
+
+    override fun onDestroyView() {
+        drawerAnimator?.cancel()
+        drawerAnimator = null
+        super.onDestroyView()
+        _binding = null
     }
 
     override fun onStart() {
@@ -409,6 +431,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     private fun showAppList(flag: AppDrawerFlag, includeHiddenApps: Boolean = false, n: Int = 0) {
+        if (flag == AppDrawerFlag.LaunchApp && drawerFragment != null) {
+            openDrawer()
+            return
+        }
         viewModel.getAppList(includeHiddenApps)
         CrashHandler.logUserAction("Display App List")
         try {
@@ -1171,4 +1197,181 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         })
     }
 
+
+    // ------------------------------------------------------------------ app drawer overlay
+    //
+    // The drawer lives in drawerContainer as a child fragment and is revealed by a progress value
+    // (0 = hidden, 1 = open). Dragging maps finger travel 1:1 to progress; release settles with a
+    // short decelerating animation. Home content fades and shrinks a little as the drawer arrives.
+
+    private var drawerProgress = 0f
+    private var drawerTargetOpen = false
+    private var dragStartProgress = 0f
+    private var drawerAnimator: ValueAnimator? = null
+    private var drawerBackCallback: OnBackPressedCallback? = null
+
+    private val drawerFragment: AppDrawerFragment?
+        get() = if (isAdded) childFragmentManager.findFragmentById(R.id.drawerContainer) as? AppDrawerFragment else null
+
+    /** Swipe up opens the drawer interactively only when that's what the gesture is set to do. */
+    private fun interactiveDrawerEnabled() = prefs.shortSwipeUpAction == Action.ShowAppList
+
+    private fun setupDrawer(savedInstanceState: Bundle?) {
+        if (childFragmentManager.findFragmentById(R.id.drawerContainer) == null) {
+            childFragmentManager.beginTransaction()
+                .replace(R.id.drawerContainer, AppDrawerFragment.newEmbedded())
+                .commitNow()
+        }
+
+        binding.homeRoot.callback = object : VerticalDragLayout.Callback {
+            override fun shouldStartDrag(downX: Float, downY: Float, dy: Float): Boolean =
+                dy < 0 && drawerProgress == 0f && interactiveDrawerEnabled() && drawerFragment != null
+
+            override fun onDragStart() = onDrawerDragStart()
+            override fun onDrag(dy: Float) = onDrawerDrag(dy)
+            override fun onDragEnd(velocityY: Float) = onDrawerDragEnd(velocityY)
+        }
+
+        val callback = object : OnBackPressedCallback(false) {
+            private var backStartProgress = 1f
+
+            override fun handleOnBackStarted(backEvent: BackEventCompat) {
+                drawerAnimator?.cancel()
+                backStartProgress = drawerProgress
+            }
+
+            override fun handleOnBackProgressed(backEvent: BackEventCompat) {
+                // Predictive back: the drawer sinks a little while the gesture is in progress
+                applyDrawerProgress(backStartProgress * (1f - 0.2f * backEvent.progress))
+            }
+
+            override fun handleOnBackCancelled() = animateDrawerTo(open = true)
+
+            override fun handleOnBackPressed() = animateDrawerTo(open = false)
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
+        drawerBackCallback = callback
+
+        val reopen = savedInstanceState?.getBoolean(STATE_DRAWER_OPEN) == true
+        drawerTargetOpen = reopen
+        // Layout isn't done yet; apply once sizes are known
+        binding.homeRoot.post { if (_binding != null) applyDrawerProgress(if (reopen) 1f else 0f) }
+    }
+
+    /** Open the drawer with an animation, optionally pre-filling the search field. */
+    fun openDrawer(query: String? = null) {
+        val drawer = drawerFragment ?: return
+        drawer.onDrawerOpening()
+        if (query != null) drawer.setSearchQuery(query)
+        animateDrawerTo(open = true)
+    }
+
+    override fun closeDrawer(animate: Boolean) {
+        if (drawerProgress == 0f && !drawerTargetOpen) return
+        if (animate) {
+            animateDrawerTo(open = false)
+        } else {
+            drawerAnimator?.cancel()
+            drawerTargetOpen = false
+            drawerFragment?.onDrawerClosing()
+            applyDrawerProgress(0f)
+            drawerFragment?.onDrawerClosed()
+        }
+    }
+
+    override fun isDrawerFullyOpen(): Boolean = drawerTargetOpen && drawerProgress >= 1f
+
+    override fun onDrawerDragStart() {
+        drawerAnimator?.cancel()
+        dragStartProgress = drawerProgress
+        if (drawerProgress == 0f) drawerFragment?.onDrawerOpening()
+    }
+
+    override fun onDrawerDrag(dy: Float) {
+        applyDrawerProgress(dragStartProgress - dy / drawerTravel())
+    }
+
+    override fun onDrawerDragEnd(velocityY: Float) {
+        val fling = FLING_DP_PER_S * resources.displayMetrics.density
+        val open = when {
+            velocityY < -fling -> true
+            velocityY > fling -> false
+            else -> drawerProgress >= 0.5f
+        }
+        animateDrawerTo(open, velocityY)
+    }
+
+    private fun drawerTravel(): Float {
+        val h = _binding?.drawerContainer?.height ?: 0
+        return (if (h > 0) h else resources.displayMetrics.heightPixels).toFloat()
+    }
+
+    private fun applyDrawerProgress(p: Float) {
+        val b = _binding ?: return
+        drawerProgress = p.coerceIn(0f, 1f)
+        val visible = drawerProgress > 0f
+        if (b.drawerContainer.isVisible != visible) {
+            b.drawerContainer.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+        }
+        drawerFragment?.applyReveal(drawerProgress, drawerTravel().toInt())
+
+        // Home fades out over the first part of the travel and shrinks slightly
+        b.mainLayout.alpha = (1f - drawerProgress * 1.5f).coerceIn(0f, 1f)
+        val scale = 1f - 0.05f * drawerProgress
+        b.mainLayout.scaleX = scale
+        b.mainLayout.scaleY = scale
+        val moving = drawerProgress > 0f && drawerProgress < 1f
+        val layer = if (moving) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
+        if (b.mainLayout.layerType != layer) b.mainLayout.setLayerType(layer, null)
+
+        drawerBackCallback?.isEnabled = visible
+    }
+
+    private fun animateDrawerTo(open: Boolean, velocityY: Float = 0f) {
+        if (_binding == null) return
+        drawerAnimator?.cancel()
+        drawerTargetOpen = open
+        if (!open) drawerFragment?.onDrawerClosing()
+
+        val target = if (open) 1f else 0f
+        val distance = abs(target - drawerProgress)
+        if (distance < 0.001f) {
+            applyDrawerProgress(target)
+            onDrawerSettled(open)
+            return
+        }
+
+        // ~280ms for a full open, less for a short hop; a fast fling shortens it further
+        val travelPx = distance * drawerTravel()
+        var duration = (280f * distance).coerceIn(160f, 280f)
+        val speed = abs(velocityY)
+        if (speed > 0f) duration = duration.coerceAtMost((travelPx / speed * 1000f * 2.2f).coerceAtLeast(160f))
+
+        var cancelled = false
+        drawerAnimator = ValueAnimator.ofFloat(drawerProgress, target).apply {
+            this.duration = duration.toLong()
+            interpolator = PathInterpolator(0.05f, 0.7f, 0.1f, 1f) // emphasized decelerate
+            addUpdateListener { applyDrawerProgress(it.animatedValue as Float) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    cancelled = true
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!cancelled) onDrawerSettled(open)
+                }
+            })
+            start()
+        }
+    }
+
+    private fun onDrawerSettled(open: Boolean) {
+        val drawer = drawerFragment ?: return
+        if (open) drawer.onDrawerOpened() else drawer.onDrawerClosed()
+    }
+
+    companion object {
+        private const val STATE_DRAWER_OPEN = "drawerOpen"
+        private const val FLING_DP_PER_S = 600f
+    }
 }

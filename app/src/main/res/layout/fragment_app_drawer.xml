@@ -1,155 +1,164 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:app="http://schemas.android.com/apk/res-auto"
-                xmlns:tools="http://schemas.android.com/tools"
-                android:id="@+id/mainLayout"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="?attr/primaryShadeDarkColor"
-                android:clipChildren="false"
-                android:clipToPadding="false">
+<com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
-    <!-- Search Bar positioned at the top -->
-    <LinearLayout
-        android:id="@+id/searchContainer"
+    <!-- Fixed backdrop: blurred wallpaper copy + scrim. Fades with the drawer, never moves. -->
+    <FrameLayout
+        android:id="@+id/drawerBackdrop"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_marginTop="34dp"
-        android:layout_marginEnd="12dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="8dp">
-
-        <com.github.creativecodecat.components.views.FontSearchView
-            android:id="@+id/search"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="end"
-            android:imeOptions="actionSearch"
-            android:paddingHorizontal="0dp"
-            android:paddingVertical="0dp"
-            app:closeIcon="@drawable/ic_close"
-            app:iconifiedByDefault="false"
-            app:queryBackground="@null"
-            app:queryHint="___"
-            app:searchIcon="@drawable/ic_search"
-            app:theme="@style/AppSearchText" />
+        android:layout_height="match_parent">
 
         <ImageView
-            android:id="@+id/workApps"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@string/advanced_settings_app_info_title"
-            android:paddingHorizontal="5dp"
-            android:paddingVertical="8dp"
-            android:scaleType="fitCenter"
-            android:visibility="gone"
-            app:srcCompat="@drawable/work_profile"
-            tools:layout_conversion_absoluteHeight="0dp"
-            tools:layout_conversion_absoluteWidth="0dp" />
+            android:id="@+id/drawerBlur"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
 
-        <ImageView
-            android:id="@+id/systemApps"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@string/advanced_settings_app_info_title"
-            android:paddingHorizontal="5dp"
-            android:paddingVertical="8dp"
-            android:scaleType="fitCenter"
-            android:visibility="gone"
-            app:srcCompat="@drawable/system_profile"
-            tools:layout_conversion_absoluteHeight="0dp"
-            tools:layout_conversion_absoluteWidth="0dp" />
+        <View
+            android:id="@+id/drawerScrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/drawer_scrim_solid" />
+    </FrameLayout>
 
-        <ImageView
-            android:id="@+id/internetSearch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:contentDescription="@string/advanced_settings_app_info_title"
-            android:paddingHorizontal="5dp"
-            android:paddingVertical="8dp"
-            android:scaleType="fitCenter"
-            android:visibility="gone"
-            app:srcCompat="@drawable/ic_browser"
-            tools:layout_conversion_absoluteHeight="0dp"
-            tools:layout_conversion_absoluteWidth="0dp" />
-    </LinearLayout>
-
-    <com.github.creativecodecat.components.views.FontAppCompatTextView
-        android:id="@+id/clearHomeButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/searchContainer"
-        android:layout_alignParentEnd="true"
-        android:paddingHorizontal="18dp"
-        android:paddingVertical="4dp"
-        android:textSize="16sp"
-        android:visibility="gone"
-        app:theme="@style/AppSearchText" />
-
-    <!-- Drawer button and tip, positioned below search container -->
-    <com.github.creativecodecat.components.views.FontAppCompatTextView
-        android:id="@+id/appDrawerTip"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/clearHomeButton"
-        android:layout_marginTop="10dp"
-        android:layout_marginEnd="4dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="@string/app_drawer_tips"
-        android:textColor="?attr/primaryColor"
-        android:textSize="16sp"
-        android:visibility="gone" />
-
-    <ViewSwitcher
-        android:id="@+id/menuView"
+    <!-- The sliding panel -->
+    <RelativeLayout
+        android:id="@+id/mainLayout"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_below="@id/appDrawerTip"
-        android:layout_alignParentBottom="true"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
         android:clipToPadding="false">
 
-        <!-- RecyclerView positioned below the Drawer TextViews -->
+        <com.github.creativecodecat.components.views.FontAppCompatTextView
+            android:id="@+id/appDrawerTip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_marginHorizontal="24dp"
+            android:layout_marginTop="12dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/app_drawer_tips"
+            android:textColor="?attr/primaryColor"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+        <com.github.creativecodecat.components.views.FontAppCompatTextView
+            android:id="@+id/clearHomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/appDrawerTip"
+            android:layout_alignParentEnd="true"
+            android:minHeight="48dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="24dp"
+            android:textSize="16sp"
+            android:visibility="gone"
+            app:theme="@style/AppSearchText" />
+
+        <!-- Search sits at the bottom, in thumb reach, and rides on top of the keyboard -->
+        <LinearLayout
+            android:id="@+id/searchContainer"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_alignParentBottom="true"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_drawer_search"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="12dp">
+
+            <com.github.creativecodecat.components.views.FontSearchView
+                android:id="@+id/search"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:imeOptions="actionSearch|flagNoExtractUi"
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="0dp"
+                app:closeIcon="@drawable/ic_close"
+                app:iconifiedByDefault="false"
+                app:queryBackground="@null"
+                app:queryHint="___"
+                app:searchIcon="@drawable/ic_search"
+                app:theme="@style/AppSearchText" />
+
+            <ImageView
+                android:id="@+id/workApps"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="@string/show_work_apps"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                app:srcCompat="@drawable/work_profile" />
+
+            <ImageView
+                android:id="@+id/systemApps"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="@string/show_apps"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                app:srcCompat="@drawable/system_profile" />
+
+            <ImageView
+                android:id="@+id/internetSearch"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:contentDescription="@string/search_engine"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_browser" />
+        </LinearLayout>
+
         <com.github.creativecodecat.components.views.FontRecyclerView
             android:id="@+id/appsRecyclerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:layout_above="@id/searchContainer"
+            android:layout_below="@id/clearHomeButton"
+            android:layout_marginBottom="4dp"
             android:clipToPadding="false"
-            android:fadingEdgeLength="20dp"
-            android:padding="0dp"
+            android:fadingEdgeLength="24dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
             android:requiresFadingEdge="vertical"
             android:scrollbars="none" />
-    </ViewSwitcher>
 
-    <FrameLayout
-        android:id="@+id/sidebar_container"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_margin="8dp"
-        android:clipChildren="false"
-        android:clipToPadding="false"
-        android:visibility="gone">
+        <FrameLayout
+            android:id="@+id/sidebar_container"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_above="@id/searchContainer"
+            android:layout_below="@id/clearHomeButton"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginVertical="8dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:visibility="gone">
 
-        <com.github.codeworkscreativehub.mlauncher.ui.components.AZSidebarView
-            android:id="@+id/azSidebar"
-            android:layout_width="32dp"
-            android:layout_height="match_parent" />
-    </FrameLayout>
+            <com.github.codeworkscreativehub.mlauncher.ui.components.AZSidebarView
+                android:id="@+id/azSidebar"
+                android:layout_width="32dp"
+                android:layout_height="match_parent" />
+        </FrameLayout>
 
+        <com.github.creativecodecat.components.views.FontAppCompatTextView
+            android:id="@+id/listEmptyHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="@string/drawer_list_empty_hint"
+            android:textSize="20sp" />
 
-    <!-- List Empty Hint, center aligned -->
-    <com.github.creativecodecat.components.views.FontAppCompatTextView
-        android:id="@+id/listEmptyHint"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text="@string/drawer_list_empty_hint"
-        android:textSize="20sp" />
-
-</RelativeLayout>
+    </RelativeLayout>
+</com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout>

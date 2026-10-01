@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.util.AttributeSet
@@ -110,6 +111,22 @@ class AZSidebarView @JvmOverloads constructor(
         // Spacing is sized for the full alphabet, so a shorter list keeps the same rhythm and stays centred
         val available = h - topBottomPaddingPx - (allLetters.size - 1) * density
         itemHeight = (available / allLetters.size).coerceAtLeast(0f)
+        updateGestureExclusion(w, h)
+    }
+
+    /**
+     * Next to a screen edge the system back gesture would grab touches on the letters.
+     * Android honours at most 200dp of exclusion per edge, so reserve the middle 200dp of the
+     * alphabet, where most drags start; the rest of the strip still works with a slightly
+     * more deliberate touch away from the edge.
+     */
+    private fun updateGestureExclusion(w: Int, h: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || w <= 0 || h <= 0) return
+        val band = (200f * density).toInt().coerceAtMost(h)
+        val top = (h - band) / 2
+        // Reach a little past the view on both sides so a finger slightly off the strip still counts
+        val extra = (12f * density).toInt()
+        systemGestureExclusionRects = listOf(Rect(-extra, top, w + extra, top + band))
     }
 
     private fun startY(): Float = (height - itemHeight * letters.size) / 2f

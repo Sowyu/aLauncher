@@ -50,13 +50,18 @@ class Migration(val context: Context) {
             ),
             1110303 to listOf(
                 "APP_ALIAS_*"
-            )
+            ),
+            // Drawer list moved to the left with the A-Z sidebar on the right
+            1120103 to listOf(
+                "DRAWER_ALIGNMENT",
+            ),
         )
 
         var totalRemoved = 0
 
         for ((version, keys) in versionCleanupMap) {
-            if (version in (savedVersionCode)..currentVersionCode) {
+            // Only versions newer than the one last run; an inclusive lower bound re-ran them every launch
+            if (version > savedVersionCode && version <= currentVersionCode) {
                 val allKeys = prefs.prefsNormal.all.keys
                 val removedThisVersion = mutableListOf<String>()
 

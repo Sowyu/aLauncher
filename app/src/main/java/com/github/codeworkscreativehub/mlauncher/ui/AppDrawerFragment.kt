@@ -7,7 +7,7 @@ package com.github.codeworkscreativehub.mlauncher.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.UserHandle
 import android.os.UserManager
@@ -22,14 +22,16 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.RelativeLayout
 import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.SearchView
+import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
-import androidx.lifecycle.LiveData
+import androidx.core.view.updatePadding
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -37,7 +39,6 @@ import androidx.recyclerview.widget.SimpleItemAnimator
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.hasSoftKeyboard
-import com.github.codeworkscreativehub.common.isGestureNavigationEnabled
 import com.github.codeworkscreativehub.common.isSystemApp
 import com.github.codeworkscreativehub.common.searchCustomSearchEngine
 import com.github.codeworkscreativehub.common.searchOnPlayStore
@@ -51,12 +52,39 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentAppDrawerBinding
 import com.github.codeworkscreativehub.mlauncher.helper.ChineseSortHelper
+import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
-import com.github.codeworkscreativehub.mlauncher.helper.getHexForOpacity
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
+import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Implemented by a parent that hosts the drawer as an overlay (the home screen).
+ * Without a host the drawer runs as a normal navigation destination (app pickers, hidden apps).
+ */
+interface DrawerHost {
+    fun closeDrawer(animate: Boolean = true)
+    fun isDrawerFullyOpen(): Boolean
+    fun onDrawerDragStart()
+    fun onDrawerDrag(dy: Float)
+    fun onDrawerDragEnd(velocityY: Float)
+}
 
 class AppDrawerFragment : BaseFragment() {
+
+    companion object {
+        /** The always-alive drawer that the home screen slides up. */
+        fun newEmbedded() = AppDrawerFragment().apply {
+            arguments = Bundle().apply {
+                putString("flag", AppDrawerFlag.LaunchApp.toString())
+                putString("profileType", "SYSTEM")
+            }
+        }
+    }
 
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
@@ -64,6 +92,15 @@ class AppDrawerFragment : BaseFragment() {
 
     private var _binding: FragmentAppDrawerBinding? = null
     private val binding get() = _binding!!
+
+    private val host: DrawerHost? get() = parentFragment as? DrawerHost
+    private val isEmbedded: Boolean get() = host != null
+
+    private var flag = AppDrawerFlag.LaunchApp
+    private var profileFilter: String? = "SYSTEM"
+    private var forceListRefresh = false
+    private var backgroundJob: Job? = null
+    private var shownBackground: Bitmap? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -75,8 +112,6 @@ class AppDrawerFragment : BaseFragment() {
         return binding.root
     }
 
-
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     @SuppressLint("RtlHardcoded")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -85,91 +120,29 @@ class AppDrawerFragment : BaseFragment() {
             prefs.firstSettingsOpen = false
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.mainLayout) { _, insets ->
-            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+        val flagString = arguments?.getString("flag", AppDrawerFlag.LaunchApp.toString())
+            ?: AppDrawerFlag.LaunchApp.toString()
+        flag = runCatching { AppDrawerFlag.valueOf(flagString) }.getOrDefault(AppDrawerFlag.LaunchApp)
+        val n = arguments?.getInt("n", 0) ?: 0
+        profileFilter = arguments?.getString("profileType", "SYSTEM") ?: "SYSTEM"
 
-            // Adjust menuView & sidebarContainer
-            val menuParams = binding.menuView.layoutParams as ViewGroup.MarginLayoutParams
-            menuParams.bottomMargin = resources.getDimensionPixelSize(R.dimen.bottom_margin_3_button_nav) + imeInsets.bottom
-            binding.menuView.layoutParams = menuParams
+        viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
 
-            insets
-        }
+        setupInsets()
+        setupSidebarSide()
+        setupDragToClose()
 
-        // Check if device is using gesture navigation or 3-button navigation
-        val isGestureNav = isGestureNavigationEnabled(requireContext())
-
-        binding.apply {
-            val params = menuView.layoutParams as ViewGroup.MarginLayoutParams
-            if (isGestureNav) {
-                params.bottomMargin = resources.getDimensionPixelSize(R.dimen.bottom_margin_gesture_nav) // or just in px
-            } else {
-                params.bottomMargin = resources.getDimensionPixelSize(R.dimen.bottom_margin_3_button_nav) // or just in px
-            }
-            menuView.layoutParams = params
-
-            val layoutParams = sidebarContainer.layoutParams as RelativeLayout.LayoutParams
-
-            // Clear old alignment rules
-            layoutParams.removeRule(RelativeLayout.ALIGN_PARENT_START)
-            layoutParams.removeRule(RelativeLayout.ALIGN_PARENT_END)
-
-            // Apply new alignment based on prefs
-            when (prefs.drawerAlignment) {
-                Constants.Gravity.Left -> layoutParams.addRule(RelativeLayout.ALIGN_PARENT_END)
-                Constants.Gravity.Center,
-                Constants.Gravity.Right -> layoutParams.addRule(RelativeLayout.ALIGN_PARENT_START)
-            }
-
-            sidebarContainer.layoutParams = layoutParams
-
-            mainLayout.setOnClickListener {
-                appsAdapter.closeOpenedMenu()
-            }
+        binding.mainLayout.setOnClickListener {
+            if (::appsAdapter.isInitialized) appsAdapter.closeOpenedMenu()
         }
 
         // Retrieve the letter key code from arguments
-        val letterKeyCode = arguments?.getInt("letterKeyCode", -1)
-        if (letterKeyCode != null && letterKeyCode != -1) {
-            val letterToChar = convertKeyCodeToLetter(letterKeyCode)
-            val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
-            searchTextView.text = letterToChar.toString()
+        val letterKeyCode = arguments?.getInt("letterKeyCode", -1) ?: -1
+        if (letterKeyCode != -1) {
+            convertKeyCodeToLetter(letterKeyCode)?.let { setSearchQuery(it.toString()) }
         }
 
-        val backgroundColor = getHexForOpacity(prefs)
-        binding.mainLayout.setBackgroundColor(backgroundColor)
-
-        val flagString = arguments?.getString("flag", AppDrawerFlag.LaunchApp.toString())
-            ?: AppDrawerFlag.LaunchApp.toString()
-        val flag = AppDrawerFlag.valueOf(flagString)
-        val n = arguments?.getInt("n", 0) ?: 0
-
-        val profileType: String = arguments?.getString("profileType", "SYSTEM") ?: "SYSTEM"
-
-        when (flag) {
-            AppDrawerFlag.SetDoubleTap,
-            AppDrawerFlag.SetShortSwipeRight,
-            AppDrawerFlag.SetShortSwipeLeft,
-            AppDrawerFlag.SetShortSwipeUp,
-            AppDrawerFlag.SetShortSwipeDown,
-            AppDrawerFlag.SetLongSwipeRight,
-            AppDrawerFlag.SetLongSwipeLeft,
-            AppDrawerFlag.SetLongSwipeUp,
-            AppDrawerFlag.SetLongSwipeDown,
-            AppDrawerFlag.SetClickClock,
-            AppDrawerFlag.SetClickDate,
-            AppDrawerFlag.SetFloating -> {
-            }
-
-            AppDrawerFlag.SetHomeApp -> setupClearHomeButton(n)
-
-
-            else -> {}
-        }
-
-        viewModel = activity?.run {
-            ViewModelProvider(this)[MainViewModel::class.java]
-        } ?: throw Exception("Invalid Activity")
+        if (flag == AppDrawerFlag.SetHomeApp) setupClearHomeButton(n)
 
         viewModel.appScrollMap.observe(viewLifecycleOwner) { appMap ->
             binding.azSidebar.onLetterSelected = { section ->
@@ -177,42 +150,37 @@ class AppDrawerFragment : BaseFragment() {
             }
         }
 
-        val gravity = when (Prefs(requireContext()).drawerAlignment) {
+        val gravity = when (prefs.drawerAlignment) {
             Constants.Gravity.Left -> Gravity.LEFT
             Constants.Gravity.Center -> Gravity.CENTER
             Constants.Gravity.Right -> Gravity.RIGHT
         }
 
-        val appAdapter = context?.let {
-            parentFragment?.let { fragment ->
-                AppDrawerAdapter(
-                    it,
-                    fragment,
-                    flag,
-                    gravity,
-                    appClickListener(viewModel, flag, n),
-                    appDeleteListener(),
-                    this.appRenameListener(),
-                    this.appTagListener(),
-                    appShowHideListener(),
-                    appInfoListener()
-                )
-            }
-        }
-
-        appAdapter?.let { appsAdapter = it }
+        val appAdapter = AppDrawerAdapter(
+            requireContext(),
+            this,
+            flag,
+            gravity,
+            appClickListener(viewModel, flag, n),
+            appDeleteListener(),
+            this.appRenameListener(),
+            this.appTagListener(),
+            appShowHideListener(),
+            appInfoListener()
+        )
+        appsAdapter = appAdapter
 
         val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
+        // The pill is 56dp tall; very large list text sizes don't fit in it
+        searchTextView.textSize = prefs.appSize.toFloat().coerceAtMost(20f)
+        searchTextView.setTextColor(prefs.appColor)
+        searchTextView.setHintTextColor(ColorUtils.setAlphaComponent(prefs.appColor, 0x99))
 
-        val textSize = prefs.appSize.toFloat()
-        searchTextView.textSize = textSize
+        initViewModel(viewModel, appAdapter)
 
-        if (appAdapter != null) {
-            initViewModel(flag, viewModel, appAdapter, profileType)
-        }
-
-        binding.appsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        val layoutManager = LinearLayoutManager(requireContext())
         binding.appsRecyclerView.apply {
+            this.layoutManager = layoutManager
             // match_parent in both directions, so content changes never resize the view
             setHasFixedSize(true)
             // No cross-fade when a row changes (menu open/close, rename)
@@ -220,18 +188,23 @@ class AppDrawerFragment : BaseFragment() {
             adapter = appAdapter
         }
 
+        // While searching, the list is laid out bottom-up so the best match sits right above the field
+        appAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() {
+                if (layoutManager.reverseLayout) binding.appsRecyclerView.scrollToPosition(0)
+            }
+        })
+
         var lastSectionLetter: String? = null
 
         binding.appsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            var onTop = false
-
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-                val itemCount = layoutManager.itemCount
+                val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
+                val itemCount = lm.itemCount
                 if (itemCount == 0) return
 
-                val firstVisible = layoutManager.findFirstVisibleItemPosition()
-                val lastVisible = layoutManager.findLastVisibleItemPosition()
+                val firstVisible = lm.findFirstVisibleItemPosition()
+                val lastVisible = lm.findLastVisibleItemPosition()
                 if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) return
 
                 val position = when {
@@ -240,7 +213,7 @@ class AppDrawerFragment : BaseFragment() {
                     else -> (firstVisible + lastVisible) / 2
                 }.coerceIn(0, itemCount - 1)
 
-                val item = appAdapter?.getItemAt(position) ?: return
+                val item = appAdapter.getItemAt(position) ?: return
 
                 val sectionLetter = when (item.category) {
                     AppCategory.PINNED -> "★"
@@ -260,47 +233,24 @@ class AppDrawerFragment : BaseFragment() {
 
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
-                appAdapter?.closeOpenedMenu()
-                when (newState) {
-                    RecyclerView.SCROLL_STATE_DRAGGING -> {
-                        onTop = !recyclerView.canScrollVertically(-1)
-                        if (onTop) {
-                            if (requireContext().hasSoftKeyboard()) {
-                                binding.search.hideKeyboard()
-                            }
-                        }
-                        if (onTop && !recyclerView.canScrollVertically(1)) {
-                            findNavController().popBackStack()
-                        }
-                    }
-
-                    RecyclerView.SCROLL_STATE_IDLE -> {
-                        if (!recyclerView.canScrollVertically(1)) {
-                            binding.search.hideKeyboard()
-                        } else if (!recyclerView.canScrollVertically(-1)) {
-                            if (onTop) {
-                                findNavController().popBackStack()
-                            } else {
-                                if (requireContext().hasSoftKeyboard()) {
-                                    binding.search.showKeyboard()
-                                }
-                            }
-                        }
-                    }
+                appAdapter.closeOpenedMenu()
+                // Scrolling the list means browsing, not typing
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING && requireContext().hasSoftKeyboard()) {
+                    binding.search.hideKeyboard()
                 }
             }
         })
 
         if (prefs.hideSearchView) {
-            binding.search.isVisible = false
+            binding.searchContainer.isVisible = false
         } else {
             val appListButtonFlags = prefs.getMenuFlags("APPLIST_BUTTON_FLAGS", "00")
             when (flag) {
                 AppDrawerFlag.LaunchApp -> {
-                    setupProfileButtons(flag, viewModel, appAdapter, profileType)
+                    setupProfileButtons(appAdapter)
 
                     binding.internetSearch.apply {
-                        isVisible = appListButtonFlags[0]
+                        isVisible = appListButtonFlags.getOrElse(0) { false }
                         setOnClickListener {
                             val query = binding.search.query.toString().trim()
                             if (query.isEmpty()) return@setOnClickListener
@@ -332,75 +282,251 @@ class AppDrawerFragment : BaseFragment() {
                     // Hashtag shortcut
                     if (searchQuery.startsWith("#")) return true
 
-                    val firstItem = appAdapter?.getFirstInList()
+                    val firstItem = appAdapter.getFirstInList()
                     if (firstItem.equals(searchQuery, ignoreCase = true) || prefs.openAppOnEnter) {
-                        appAdapter?.launchFirstInList()
+                        appAdapter.launchFirstInList()
                     } else {
                         requireContext().searchOnPlayStore(searchQuery)
                     }
-
-                    return true
                 }
-
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (flag == AppDrawerFlag.SetHomeApp) {
-                    binding.clearHomeButton.apply {
-                        isVisible = newText.isNullOrEmpty()
-                    }
+                    binding.clearHomeButton.isVisible = newText.isNullOrEmpty() && hasHomeAppToClear
                 }
 
-                newText?.let { appAdapter?.filter?.filter(it.trim()) }
+                val searching = !newText.isNullOrBlank()
+                if (layoutManager.reverseLayout != searching) layoutManager.reverseLayout = searching
+                // Section letters only make sense for the full, alphabetical list
+                binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
+
+                newText?.let { appAdapter.filter.filter(it.trim()) }
                 return false
             }
         })
+
+        refreshBackground()
     }
 
-    private fun setupProfileButtons(
-        flag: AppDrawerFlag,
-        viewModel: MainViewModel,
-        appAdapter: AppDrawerAdapter?,
-        profileType: String
-    ) {
-        var currentProfileType = profileType
+    // ---------------------------------------------------------------- layout
 
-        fun updateProfileUI(profileType: String) {
-            currentProfileType = profileType
+    /** Status bar on top; search pill rides on the nav bar or the keyboard, animated with the IME. */
+    private fun setupInsets() {
+        val panel = binding.mainLayout
+        val baseMargin = (12 * resources.displayMetrics.density).toInt()
+        var imeAnimating = false
 
-            val isWorkProfileAvailable = prefs.getProfileCounter("WORK") > 0 && profileType != "WORK"
-            val isSystemProfileAvailable = prefs.getProfileCounter("SYSTEM") > 0 && profileType != "SYSTEM"
+        fun applyBottom(insets: WindowInsetsCompat) {
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            val params = binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
+            val bottom = maxOf(ime, nav) + baseMargin
+            if (params.bottomMargin != bottom) {
+                params.bottomMargin = bottom
+                binding.searchContainer.layoutParams = params
+            }
+        }
 
-            binding.workApps.isVisible = isWorkProfileAvailable
-            binding.systemApps.isVisible = isSystemProfileAvailable
+        ViewCompat.setOnApplyWindowInsetsListener(panel) { v, insets ->
+            val top = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()).top
+            v.updatePadding(top = top)
+            if (!imeAnimating) applyBottom(insets)
+            insets
+        }
 
-            binding.search.queryHint = when (profileType) {
+        ViewCompat.setWindowInsetsAnimationCallback(
+            panel,
+            object : WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+                override fun onPrepare(animation: WindowInsetsAnimationCompat) {
+                    if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) imeAnimating = true
+                }
+
+                override fun onProgress(
+                    insets: WindowInsetsCompat,
+                    runningAnimations: MutableList<WindowInsetsAnimationCompat>
+                ): WindowInsetsCompat {
+                    applyBottom(insets)
+                    return insets
+                }
+
+                override fun onEnd(animation: WindowInsetsAnimationCompat) {
+                    if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) {
+                        imeAnimating = false
+                        ViewCompat.requestApplyInsets(panel)
+                    }
+                }
+            }
+        )
+        ViewCompat.requestApplyInsets(panel)
+    }
+
+    /** Sidebar goes on the side opposite the text, and the list keeps clear of it. */
+    private fun setupSidebarSide() {
+        val params = binding.sidebarContainer.layoutParams as RelativeLayout.LayoutParams
+        params.removeRule(RelativeLayout.ALIGN_PARENT_START)
+        params.removeRule(RelativeLayout.ALIGN_PARENT_END)
+        val sidebarOnEnd = prefs.drawerAlignment == Constants.Gravity.Left
+        params.addRule(if (sidebarOnEnd) RelativeLayout.ALIGN_PARENT_END else RelativeLayout.ALIGN_PARENT_START)
+        binding.sidebarContainer.layoutParams = params
+
+        if (prefs.showAZSidebar) {
+            val gap = (56 * resources.displayMetrics.density).toInt()
+            binding.appsRecyclerView.updatePadding(
+                left = if (sidebarOnEnd) 0 else gap,
+                right = if (sidebarOnEnd) gap else 0,
+            )
+        }
+    }
+
+    /**
+     * Pulling down while the list is at the top closes the drawer, following the finger when the
+     * drawer is an overlay. As a navigation destination it just goes back.
+     */
+    private fun setupDragToClose() {
+        binding.drawerRoot.callback = object : VerticalDragLayout.Callback {
+            override fun shouldStartDrag(downX: Float, downY: Float, dy: Float): Boolean {
+                if (dy <= 0) return false
+                if (binding.appsRecyclerView.canScrollVertically(-1)) return false
+                if (isInside(binding.sidebarContainer, downX, downY)) return false
+                val h = host
+                if (h == null) {
+                    findNavController().popBackStack()
+                    return false
+                }
+                return h.isDrawerFullyOpen()
+            }
+
+            override fun onDragStart() {
+                if (requireContext().hasSoftKeyboard()) binding.search.hideKeyboard()
+                if (::appsAdapter.isInitialized) appsAdapter.closeOpenedMenu()
+                host?.onDrawerDragStart()
+            }
+
+            override fun onDrag(dy: Float) {
+                host?.onDrawerDrag(dy)
+            }
+
+            override fun onDragEnd(velocityY: Float) {
+                host?.onDrawerDragEnd(velocityY)
+            }
+        }
+    }
+
+    private fun isInside(v: View, x: Float, y: Float): Boolean {
+        if (!v.isVisible) return false
+        val loc = IntArray(2)
+        val rootLoc = IntArray(2)
+        v.getLocationInWindow(loc)
+        binding.drawerRoot.getLocationInWindow(rootLoc)
+        val left = loc[0] - rootLoc[0]
+        val top = loc[1] - rootLoc[1]
+        return x >= left && x <= left + v.width && y >= top && y <= top + v.height
+    }
+
+    // ---------------------------------------------------------- overlay hooks
+
+    /** Called by the host every frame: [progress] 0 = hidden, 1 = fully open. */
+    fun applyReveal(progress: Float, travel: Int) {
+        val b = _binding ?: return
+        b.mainLayout.translationY = (1f - progress) * travel
+        b.drawerBackdrop.alpha = progress
+        // The backdrop is static: cache it in a GPU layer while it fades so frames stay cheap
+        val layer = if (progress > 0f && progress < 1f) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
+        if (b.drawerBackdrop.layerType != layer) b.drawerBackdrop.setLayerType(layer, null)
+    }
+
+    fun onDrawerOpening() {
+        viewModel.getAppList()
+    }
+
+    fun onDrawerOpened() {
+        if (requireContext().hasSoftKeyboard()) binding.search.showKeyboard(delayMs = 0)
+    }
+
+    fun onDrawerClosing() {
+        val b = _binding ?: return
+        if (requireContext().hasSoftKeyboard()) b.search.hideKeyboard()
+        if (::appsAdapter.isInitialized) appsAdapter.closeOpenedMenu()
+    }
+
+    /** Reset to a fresh drawer: empty search, list at the top. */
+    fun onDrawerClosed() {
+        val b = _binding ?: return
+        b.search.hideKeyboard()
+        if (b.search.query.isNotEmpty()) b.search.setQuery("", false)
+        b.appsRecyclerView.stopScroll()
+        b.appsRecyclerView.scrollToPosition(0)
+    }
+
+    fun setSearchQuery(text: String) {
+        val b = _binding ?: return
+        if (prefs.hideSearchView) return
+        b.search.setQuery(text, false)
+        b.search.findViewById<TextView>(R.id.search_src_text)?.let {
+            it.requestFocus()
+            (it as? android.widget.EditText)?.setSelection(it.text.length)
+        }
+    }
+
+    // ------------------------------------------------------------ background
+
+    /** Blurred wallpaper copy behind the drawer; rendered once, then reused from cache. */
+    private fun refreshBackground() {
+        val b = _binding ?: return
+        val radius = prefs.drawerBlurRadius
+        val cached = DrawerBackground.cached(requireContext(), radius)
+        if (cached != null) {
+            showBackground(cached)
+            return
+        }
+        if (backgroundJob?.isActive == true) return
+        val appContext = requireContext().applicationContext
+        val activityContext = requireActivity()
+        backgroundJob = viewLifecycleOwner.lifecycleScope.launch {
+            val bmp = withContext(Dispatchers.Default) {
+                DrawerBackground.loadBlurred(activityContext, radius)
+            }
+            if (_binding == null) return@launch
+            showBackground(bmp)
+            AppLogger.d("AppDrawer", "Drawer background: ${DrawerBackground.currentSource(appContext)}")
+        }
+        // Until the blur is ready, a solid scrim keeps the text readable
+        if (shownBackground == null) showBackground(null)
+    }
+
+    private fun showBackground(bmp: Bitmap?) {
+        val b = _binding ?: return
+        if (bmp != null && bmp === shownBackground) return
+        shownBackground = bmp
+        b.drawerBlur.setImageBitmap(bmp)
+        b.drawerBlur.isVisible = bmp != null
+        b.drawerScrim.setBackgroundResource(if (bmp != null) R.color.drawer_scrim else R.color.drawer_scrim_solid)
+    }
+
+    private fun setupProfileButtons(appAdapter: AppDrawerAdapter) {
+        fun updateProfileUI() {
+            val current = profileFilter ?: "SYSTEM"
+            binding.workApps.isVisible = prefs.getProfileCounter("WORK") > 0 && current != "WORK"
+            binding.systemApps.isVisible = prefs.getProfileCounter("SYSTEM") > 0 && current != "SYSTEM"
+            binding.search.queryHint = when (current) {
                 "WORK" -> getLocalizedString(R.string.show_work_apps)
                 else -> getLocalizedString(R.string.show_apps)
             }
         }
 
         fun onProfileClicked(newType: String) {
-            if (appAdapter != null) {
-                initViewModel(flag, viewModel, appAdapter, newType)
-            }
+            profileFilter = newType
             binding.search.setQuery("", false)
-            updateProfileUI(newType)
+            viewModel.appList.value?.let { populateFromRaw(it, appAdapter, force = true) }
+            updateProfileUI()
         }
 
-        // Initial setup
-        updateProfileUI(currentProfileType)
-
-        // Button listeners
-        binding.workApps.setOnClickListener {
-            onProfileClicked("WORK")
-        }
-        binding.systemApps.setOnClickListener {
-            onProfileClicked("SYSTEM")
-        }
+        updateProfileUI()
+        binding.workApps.setOnClickListener { onProfileClicked("WORK") }
+        binding.systemApps.setOnClickListener { onProfileClicked("SYSTEM") }
     }
-
 
     private fun applyTextColor(text: String, color: Int): SpannableString {
         val spannableString = SpannableString(text)
@@ -413,109 +539,64 @@ class AppDrawerFragment : BaseFragment() {
         return spannableString
     }
 
-    private fun convertKeyCodeToLetter(keyCode: Int): Char {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_A -> 'A'
-            KeyEvent.KEYCODE_B -> 'B'
-            KeyEvent.KEYCODE_C -> 'C'
-            KeyEvent.KEYCODE_D -> 'D'
-            KeyEvent.KEYCODE_E -> 'E'
-            KeyEvent.KEYCODE_F -> 'F'
-            KeyEvent.KEYCODE_G -> 'G'
-            KeyEvent.KEYCODE_H -> 'H'
-            KeyEvent.KEYCODE_I -> 'I'
-            KeyEvent.KEYCODE_J -> 'J'
-            KeyEvent.KEYCODE_K -> 'K'
-            KeyEvent.KEYCODE_L -> 'L'
-            KeyEvent.KEYCODE_M -> 'M'
-            KeyEvent.KEYCODE_N -> 'N'
-            KeyEvent.KEYCODE_O -> 'O'
-            KeyEvent.KEYCODE_P -> 'P'
-            KeyEvent.KEYCODE_Q -> 'Q'
-            KeyEvent.KEYCODE_R -> 'R'
-            KeyEvent.KEYCODE_S -> 'S'
-            KeyEvent.KEYCODE_T -> 'T'
-            KeyEvent.KEYCODE_U -> 'U'
-            KeyEvent.KEYCODE_V -> 'V'
-            KeyEvent.KEYCODE_W -> 'W'
-            KeyEvent.KEYCODE_X -> 'X'
-            KeyEvent.KEYCODE_Y -> 'Y'
-            KeyEvent.KEYCODE_Z -> 'Z'
-            else -> throw IllegalArgumentException("Invalid key code: $keyCode")
-        }
-    }
+    private fun convertKeyCodeToLetter(keyCode: Int): Char? =
+        if (keyCode in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z) 'A' + (keyCode - KeyEvent.KEYCODE_A) else null
 
-    private fun initViewModel(
-        flag: AppDrawerFlag,
-        viewModel: MainViewModel,
-        appAdapter: AppDrawerAdapter,
-        profileFilter: String? = null // "WORK", "SYSTEM", "USER", or null for all
-    ) {
-        fun <T> observeList(
-            liveData: LiveData<List<T>?>,
-            currentList: List<T>,
-            onPopulate: (List<T>) -> Unit,
-            skipCondition: () -> Boolean = { false }
-        ) {
-            liveData.observe(viewLifecycleOwner) { newList ->
-                if (skipCondition() || newList == currentList) return@observe
-                newList?.let {
-                    binding.listEmptyHint.isVisible = it.isEmpty()
-                    binding.sidebarContainer.isVisible = prefs.showAZSidebar
-                    onPopulate(it)
-                }
-            }
+    private fun initViewModel(viewModel: MainViewModel, appAdapter: AppDrawerAdapter) {
+        // Hidden apps screen
+        viewModel.hiddenApps.observe(viewLifecycleOwner) { list ->
+            if (flag != AppDrawerFlag.HiddenApps || list == null || list == appAdapter.appsList) return@observe
+            binding.listEmptyHint.isVisible = list.isEmpty()
+            binding.sidebarContainer.isVisible = prefs.showAZSidebar
+            populateAppList(list, appAdapter)
         }
 
-        // 🔹 Observe hidden apps
-        observeList(
-            viewModel.hiddenApps, appAdapter.appsList,
-            onPopulate = { populateAppList(it, appAdapter) },
-            skipCondition = { flag != AppDrawerFlag.HiddenApps }
-        )
-
-        // 🔹 Observe apps
+        // Everything else
         viewModel.appList.observe(viewLifecycleOwner) { rawAppList ->
-            if (flag == AppDrawerFlag.HiddenApps) return@observe
-            if (rawAppList == appAdapter.appsList) return@observe
-
-            AppLogger.d("Apps", "Loaded ${rawAppList?.size ?: 0} raw apps")
-            rawAppList?.let { list ->
-                val appsByProfile = list.groupBy { it.profileType }
-                val allProfiles = listOf("SYSTEM", "WORK", "USER")
-
-                // Update prefs counters
-                allProfiles.forEach { profile ->
-                    prefs.setProfileCounter(profile, appsByProfile[profile]?.size ?: 0)
-                }
-
-                // Merge apps based on filter
-                val mergedList = allProfiles.flatMap { profile ->
-                    val apps = appsByProfile[profile].orEmpty()
-                    if (apps.isNotEmpty() && (profileFilter == null || profileFilter.equals(profile, true))) {
-                        AppLogger.d("AppMerge", "Adding ${apps.size} $profile apps")
-                        apps
-                    } else emptyList()
-                }
-
-                AppLogger.d("AppMerge", "Final merged list (${mergedList.size} apps)")
-
-                binding.listEmptyHint.isVisible = mergedList.isEmpty()
-                binding.sidebarContainer.isVisible = prefs.showAZSidebar
-                populateAppList(mergedList, appAdapter)
-            }
+            if (flag == AppDrawerFlag.HiddenApps || rawAppList == null) return@observe
+            populateFromRaw(rawAppList, appAdapter, force = false)
         }
 
-        // 🔹 Observe first open
         viewModel.firstOpen.observe(viewLifecycleOwner) {
             binding.appDrawerTip.isVisible = it
         }
     }
 
+    private fun populateFromRaw(rawAppList: List<AppListItem>, appAdapter: AppDrawerAdapter, force: Boolean) {
+        val appsByProfile = rawAppList.groupBy { it.profileType }
+        val allProfiles = listOf("SYSTEM", "WORK", "USER")
+        allProfiles.forEach { profile ->
+            prefs.setProfileCounter(profile, appsByProfile[profile]?.size ?: 0)
+        }
+
+        // The view model's list may include hidden apps (it is shared with the app pickers)
+        val hidden = prefs.hiddenApps
+        val filter = profileFilter
+        val mergedList = allProfiles.flatMap { profile ->
+            if (filter == null || filter.equals(profile, true)) appsByProfile[profile].orEmpty() else emptyList()
+        }.filter { flag != AppDrawerFlag.LaunchApp || !isHidden(it, hidden) }
+
+        if (!force && !forceListRefresh && mergedList == appAdapter.appsList) return
+        forceListRefresh = false
+
+        AppLogger.d("AppMerge", "Showing ${mergedList.size} apps")
+        binding.listEmptyHint.isVisible = mergedList.isEmpty()
+        binding.sidebarContainer.isVisible = prefs.showAZSidebar && binding.search.query.isNullOrBlank()
+        populateAppList(mergedList, appAdapter)
+    }
+
+    private fun isHidden(app: AppListItem, hidden: Set<String>): Boolean {
+        if (hidden.isEmpty()) return false
+        val key = "${app.activityPackage}|${app.activityClass}|${app.user.hashCode()}"
+        return app.activityPackage in hidden || key in hidden || "${app.activityPackage}|${key.hashCode()}" in hidden
+    }
+
     override fun onResume() {
         super.onResume()
-        if (requireContext().hasSoftKeyboard()) {
-            // Wait out the 280ms drawer_enter animation so the IME resize doesn't jolt it
+        refreshBackground()
+        // As an overlay the host decides when the keyboard shows (once the drawer is open)
+        if (!isEmbedded && requireContext().hasSoftKeyboard()) {
+            // Wait out the drawer_enter animation so the IME doesn't jolt it
             binding.search.showKeyboard(delayMs = 300)
         }
     }
@@ -527,15 +608,21 @@ class AppDrawerFragment : BaseFragment() {
         }
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        backgroundJob?.cancel()
+        shownBackground = null
+        _binding = null
+    }
 
     private fun View.showKeyboard(delayMs: Long = 100) {
-        val prefs = Prefs(requireContext())
         if (!prefs.autoShowKeyboard) return
         if (prefs.hideSearchView) return
 
         val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         searchTextView.postDelayed({
+            if (_binding == null) return@postDelayed
             searchTextView.requestFocus()
             imm.showSoftInput(searchTextView, 0)
         }, delayMs)
@@ -548,6 +635,17 @@ class AppDrawerFragment : BaseFragment() {
         this.clearFocus()
     }
 
+    /** Leave the drawer: slide the overlay away, or pop the navigation destination. */
+    private fun dismiss(toHome: Boolean, animate: Boolean = true) {
+        val h = host
+        if (h != null) {
+            h.closeDrawer(animate)
+            return
+        }
+        if (!isAdded) return
+        if (toHome) findNavController().popBackStack(R.id.mainFragment, false)
+        else findNavController().popBackStack()
+    }
 
     private fun populateAppList(apps: List<AppListItem>, appAdapter: AppDrawerAdapter) {
         appAdapter.setAppList(apps.toMutableList())
@@ -562,10 +660,12 @@ class AppDrawerFragment : BaseFragment() {
         n: Int = 0
     ): (appListItem: AppListItem) -> Unit = { appModel ->
         viewModel.selectedApp(this, appModel, flag, n)
-        if (flag == AppDrawerFlag.LaunchApp || flag == AppDrawerFlag.HiddenApps)
-            findNavController().popBackStack(R.id.mainFragment, false)
-        else
-            findNavController().popBackStack()
+        when {
+            // The launched app covers the drawer; MainActivity resets it once we're in the background
+            isEmbedded -> {}
+            flag == AppDrawerFlag.LaunchApp || flag == AppDrawerFlag.HiddenApps -> dismiss(toHome = true)
+            else -> dismiss(toHome = false)
+        }
     }
 
     private fun appDeleteListener(): (appListItem: AppListItem) -> Unit = { appModel ->
@@ -583,13 +683,18 @@ class AppDrawerFragment : BaseFragment() {
     private fun appRenameListener(): (appPackage: String, appAlias: String) -> Unit = { appPackage, appAlias ->
         val prefs = Prefs(requireContext())
         prefs.setAppAlias(appPackage, appAlias)
-        findNavController().popBackStack()
+        // Re-sort with the new name next time the list is shown
+        forceListRefresh = true
+        viewModel.getAppList()
+        dismiss(toHome = false)
     }
 
     private fun appTagListener(): (appPackage: String, appTag: String, appUser: UserHandle) -> Unit = { appPackage, appTag, appUser ->
         val prefs = Prefs(requireContext())
         prefs.setAppTag(appPackage, appTag, appUser)
-        findNavController().popBackStack()
+        forceListRefresh = true
+        viewModel.getAppList()
+        dismiss(toHome = false)
     }
 
     private fun appShowHideListener(): (flag: AppDrawerFlag, appListItem: AppListItem) -> Unit = { flag, appModel ->
@@ -607,7 +712,7 @@ class AppDrawerFragment : BaseFragment() {
 
         prefs.hiddenApps = newSet
 
-        if (newSet.isEmpty()) findNavController().popBackStack()
+        if (newSet.isEmpty() && flag == AppDrawerFlag.HiddenApps) dismiss(toHome = false)
     }
 
     private fun appInfoListener(): (appListItem: AppListItem) -> Unit = { appModel ->
@@ -616,7 +721,7 @@ class AppDrawerFragment : BaseFragment() {
             appModel.user,
             appModel.activityPackage
         )
-        findNavController().popBackStack(R.id.mainFragment, false)
+        if (!isEmbedded) dismiss(toHome = true)
     }
 
     /** Instant jump that puts the section's first row at the top of the list. */
@@ -624,7 +729,7 @@ class AppDrawerFragment : BaseFragment() {
         val count = recyclerView.adapter?.itemCount ?: return
         if (index !in 0 until count) return
         recyclerView.stopScroll()
-        // Both drawer lists use a plain top-down LinearLayoutManager (not reversed)
+        // The sidebar is only shown for the full list, which is laid out top-down
         (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0)
             ?: recyclerView.scrollToPosition(index)
     }
@@ -659,10 +764,13 @@ class AppDrawerFragment : BaseFragment() {
         )
     }
 
+    private var hasHomeAppToClear = false
+
     private fun setupClearHomeButton(position: Int) {
         val currentApp = prefs.getHomeAppModel(position)
         val hasCurrentApp =
             currentApp.activityPackage.isNotEmpty() && currentApp.activityClass.isNotEmpty()
+        hasHomeAppToClear = hasCurrentApp
 
         binding.clearHomeButton.apply {
             isVisible = hasCurrentApp
@@ -672,7 +780,7 @@ class AppDrawerFragment : BaseFragment() {
                 textSize = prefs.appSize.toFloat()
                 setOnClickListener {
                     prefs.setHomeAppModel(position, createClearApp())
-                    findNavController().popBackStack()
+                    dismiss(toHome = false)
                 }
             }
         }

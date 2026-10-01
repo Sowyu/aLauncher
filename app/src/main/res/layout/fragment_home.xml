@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Root takes over upward drags to pull the app drawer up with the finger -->
+<com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/homeRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ui.HomeFragment">
+
+<FrameLayout
     android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:animateLayoutChanges="true"
-    android:orientation="vertical"
-    tools:context=".ui.HomeFragment">
+    android:orientation="vertical">
 
     <FrameLayout
         android:id="@+id/touchArea"
@@ -196,3 +202,12 @@
     </LinearLayout>
 
 </FrameLayout>
+
+<!-- App drawer overlay, hosted here so it can follow the finger -->
+<androidx.fragment.app.FragmentContainerView
+    android:id="@+id/drawerContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:visibility="invisible" />
+
+</com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout>
