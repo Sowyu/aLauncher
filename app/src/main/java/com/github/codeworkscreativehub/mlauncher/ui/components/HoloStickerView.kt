@@ -96,6 +96,17 @@ class HoloStickerView @JvmOverloads constructor(
     private var lastDrawX = 0f
     private var lastDrawY = 0f
 
+    // Movement on top of tilt: twisting (gyro) spins the foil, moving the phone (linear accel) pushes the light
+    private val gyro: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val linear: Sensor? = sensorManager?.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+    private var spin = 0f          // radians, accumulated twist, eases back to 0
+    private var pushX = 0f         // light offset from movement, in tilt-units (-1..1), springs back
+    private var pushY = 0f
+    private var pushVX = 0f
+    private var pushVY = 0f
+    private var energy = 0f        // 0..1, recent motion; boosts sparkle and glare
+    private var lastNs = 0L
+
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -121,6 +132,9 @@ class HoloStickerView @JvmOverloads constructor(
         if (want) {
             baseX = Float.NaN
             sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
+            gyro?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+            linear?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+            lastNs = 0L
         } else {
             sensorManager?.unregisterListener(this)
         }
@@ -138,6 +152,10 @@ class HoloStickerView @JvmOverloads constructor(
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        when (event.sensor.type) {
+            Sensor.TYPE_GYROSCOPE -> { onGyro(event); return }
+            Sensor.TYPE_LINEAR_ACCELERATION -> { onMove(event); return }
+        }
         // Gravity in the device frame: x = left/right tilt, y = toward/away tilt. No gimbal flips when upright.
         val g = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
         if (g < 1f) return
@@ -160,6 +178,43 @@ class HoloStickerView @JvmOverloads constructor(
             lastDrawY = tiltY
             postInvalidateOnAnimation()
         }
+    }
+
+    private fun dt(event: SensorEvent): Float {
+        val d = if (lastNs == 0L) 0.02f else ((event.timestamp - lastNs) / 1e9f).coerceIn(0.001f, 0.05f)
+        lastNs = event.timestamp
+        return d
+    }
+
+    private fun onGyro(event: SensorEvent) {
+        val d = dt(event)
+        val (wx, wy, wz) = Triple(event.values[0], event.values[1], event.values[2])
+        // Twisting around the screen axis spins the rainbow; it drifts back so it never gets stuck
+        spin = (spin + wz * d * 1.5f) * 0.985f
+        val rate = sqrt(wx * wx + wy * wy + wz * wz)
+        energy = maxOf(energy * 0.94f, (rate / 3f).coerceAtMost(1f))
+        stepPush(d)
+        postInvalidateOnAnimation()
+    }
+
+    private fun onMove(event: SensorEvent) {
+        val d = dt(event)
+        // Moving the phone shoves the light point the other way (inertia), then a spring brings it back
+        pushVX -= event.values[0] * d * 0.9f
+        pushVY += event.values[1] * d * 0.9f
+        val a = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
+        energy = maxOf(energy, (a / 6f).coerceAtMost(1f))
+        stepPush(d)
+        postInvalidateOnAnimation()
+    }
+
+    private fun stepPush(d: Float) {
+        // Damped spring toward 0
+        pushVX += (-pushX * 40f - pushVX * 9f) * d
+        pushVY += (-pushY * 40f - pushVY * 9f) * d
+        pushX = (pushX + pushVX * d).coerceIn(-1f, 1f)
+        pushY = (pushY + pushVY * d).coerceIn(-1f, 1f)
+        energy *= 0.98f
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -275,9 +330,9 @@ class HoloStickerView @JvmOverloads constructor(
 
         val size = bmp.width.toFloat()
         bounds.set(left, top, left + size, top + size)
-        val tx = tiltX / TILT_RANGE // -1..1
-        val ty = tiltY / TILT_RANGE
-        val motion = sqrt(tx * tx + ty * ty).coerceAtMost(1f)
+        val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
+        val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
+        val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
         // ~50% at rest, ~85% fully tilted, at the default intensity of 0.8
         val strength = ((0.22f + 0.5f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
 
@@ -292,6 +347,7 @@ class HoloStickerView @JvmOverloads constructor(
         rainbowPaint.shader = RadialGradient(lx, ly, period, rainbow, null, Shader.TileMode.REPEAT).also { g ->
             shaderMatrix.reset()
             shaderMatrix.postScale(1f + drift / size, 1f + drift / size, lx, ly)
+            shaderMatrix.postRotate(Math.toDegrees(spin.toDouble()).toFloat(), left + size / 2f, top + size / 2f)
             g.setLocalMatrix(shaderMatrix)
         }
         val ridge = period / 3.5f
@@ -316,7 +372,7 @@ class HoloStickerView @JvmOverloads constructor(
         foilLayer(canvas, bmp, left, top, overlayPaint, (0.15f + 0.45f * motion) * holoIntensity) {
             canvas.drawRect(bounds, etchPaint)
         }
-        shaderMatrix.setTranslate(tx * 14 * density, -ty * 14 * density)
+        shaderMatrix.setTranslate(tx * 14 * density, -ty * 14 * density); shaderMatrix.postRotate(Math.toDegrees(spin.toDouble()).toFloat() * 2f, left + size / 2f, top + size / 2f)
         glitter.setLocalMatrix(shaderMatrix)
         glitterPaint.shader = glitter
         foilLayer(canvas, bmp, left, top, screenPaint, (0.08f + 0.8f * motion) * holoIntensity) {
