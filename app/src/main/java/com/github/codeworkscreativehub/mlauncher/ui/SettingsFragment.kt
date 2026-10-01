@@ -74,6 +74,7 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentSettingsBinding
 import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
+import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper
 import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
@@ -127,7 +128,7 @@ private enum class Page(
         R.string.st_cat_home, R.string.st_cat_home_sub, R.drawable.ic_order_apps, listOf(
             R.string.st_reorder_apps, R.string.st_home_apps, R.string.st_home_pages, R.string.st_home_pager,
             R.string.st_lock_home, R.string.st_home_alignment, R.string.st_align_bottom, R.string.st_app_text_size,
-            R.string.st_padding, R.string.st_extend_area, R.string.st_home_icons, R.string.st_app_colour,
+            R.string.st_padding, R.string.st_extend_area, R.string.st_home_icons, R.string.st_mono_icons, R.string.st_app_colour,
             R.string.st_show_shortcuts, R.string.st_shortcut_buttons, R.string.st_shortcut_colour,
         )
     ),
@@ -502,6 +503,19 @@ class SettingsFragment : BaseFragment() {
                 value = iconPack.getString(IconCacheTarget.HOME.name)
             ) {
                 pickIconPack(IconCacheTarget.HOME, getLocalizedString(R.string.st_home_icons), iconPack) { iconPack = it }
+            }
+            if (iconPack == Constants.IconPacks.Custom) {
+                var mono by remember { mutableStateOf(prefs.monochromeIconFallback) }
+                SwitchRow(
+                    title = getLocalizedString(R.string.st_mono_icons),
+                    subtitle = getLocalizedString(R.string.st_mono_icons_sub),
+                    checked = mono
+                ) {
+                    mono = it
+                    prefs.monochromeIconFallback = it
+                    IconPackHelper.onPackageChanged(null)
+                    updateHomeWidget(context)
+                }
             }
             ColorRow(getLocalizedString(R.string.st_app_colour), appColor) {
                 showColorPicker(getLocalizedString(R.string.st_app_colour), appColor) { c ->

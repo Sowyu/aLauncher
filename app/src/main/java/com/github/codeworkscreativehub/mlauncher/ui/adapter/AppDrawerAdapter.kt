@@ -445,7 +445,8 @@ class AppDrawerAdapter(
                             packageName = packageName,
                             useIconPack = prefs.customIconPackAppList.isNotEmpty() &&
                                     prefs.iconPackAppList == Constants.IconPacks.Custom,
-                            iconPackTarget = IconCacheTarget.APP_LIST
+                            iconPackTarget = IconCacheTarget.APP_LIST,
+                            activityClass = appListItem.activityClass
                         )
                         getSystemIcons(context, prefs, IconCacheTarget.APP_LIST, nonNullDrawable) ?: nonNullDrawable
                     }

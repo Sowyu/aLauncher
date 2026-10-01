@@ -384,6 +384,11 @@ class Prefs(val context: Context) {
         get() = getSetting(CLOCK_STICKER_SIZE, 96).coerceIn(32, 240)
         set(value) = prefsNormal.edit { putInt(CLOCK_STICKER_SIZE, value.coerceIn(32, 240)) }
 
+    /** With a custom icon pack, draw white glyphs for apps the pack doesn't cover. */
+    var monochromeIconFallback: Boolean
+        get() = getSetting(MONO_ICON_FALLBACK, true)
+        set(value) = prefsNormal.edit { putBoolean(MONO_ICON_FALLBACK, value) }
+
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
         set(value) = prefsNormal.edit { putBoolean(HIDE_SEARCH_VIEW, value) }

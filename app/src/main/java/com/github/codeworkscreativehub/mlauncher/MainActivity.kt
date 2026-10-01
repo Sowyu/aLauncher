@@ -2,7 +2,9 @@ package com.github.codeworkscreativehub.mlauncher
 
 import android.app.Activity
 import android.app.role.RoleManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
@@ -18,6 +20,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -345,6 +348,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+        // Installs, updates and removals (including the icon pack itself) invalidate icons
+        val packageFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
+            addDataScheme("package")
+        }
+        ContextCompat.registerReceiver(this, packageReceiver, packageFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
+
         val systemBarObserver = SystemBarObserver(prefs)
         lifecycle.addObserver(systemBarObserver)
     }
@@ -528,6 +541,18 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         // Home button: always go home
         expectingReturn = false
+    }
+
+    private val packageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            IconPackHelper.onPackageChanged(intent.data?.schemeSpecificPart)
+            if (::viewModel.isInitialized) viewModel.getAppList()
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(packageReceiver) }
+        super.onDestroy()
     }
 
     override fun onStop() {

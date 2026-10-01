@@ -184,4 +184,6 @@
     <string name="st_sticker_choose">Choose image</string>
     <string name="st_sticker_remove">Remove sticker</string>
     <string name="st_sticker_size">Sticker size</string>
+    <string name="st_mono_icons">Monochrome icons for all apps</string>
+    <string name="st_mono_icons_sub">Apps the icon pack misses get a matching white glyph, at home and in the app list</string>
 </resources>

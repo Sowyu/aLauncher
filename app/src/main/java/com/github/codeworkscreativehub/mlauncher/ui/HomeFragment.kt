@@ -68,6 +68,7 @@ import com.github.codeworkscreativehub.mlauncher.databinding.FragmentHomeBinding
 import com.github.codeworkscreativehub.mlauncher.helper.ClockSticker
 import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
+import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper
 import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper.getSafeAppIcon
 import com.github.codeworkscreativehub.mlauncher.helper.getHexForOpacity
 import com.github.codeworkscreativehub.mlauncher.helper.getSystemIcons
@@ -167,6 +168,23 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         // Update dynamic UI elements
         updateTimeAndInfo()
         updateClockSticker()
+        refreshIconsIfStale()
+    }
+
+    private var iconGeneration = IconPackHelper.generation
+
+    /** An app or the icon pack changed since the rows were drawn: redraw home and the drawer. */
+    private fun refreshIconsIfStale() {
+        val b = _binding ?: return
+        if (iconGeneration == IconPackHelper.generation) return
+        iconGeneration = IconPackHelper.generation
+        if (homeEditing()) exitEditMode(animate = false)
+        b.homeAppsLayout.removeAllViews()
+        updateAppCount(prefs.homeAppsNum)
+        viewModel.homeAppsAlignment.value?.let { (gravity, _) ->
+            b.homeAppsLayout.children.forEach { (it as? TextView)?.gravity = gravity.value() }
+        }
+        if (drawerProgress == 0f) attachFreshDrawer()
     }
 
     private var stickerStamp = -1L
@@ -793,7 +811,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                             context = context,
                             packageName = packageName,
                             useIconPack = (iconPackPackage.isNotEmpty() && prefs.iconPackHome == Constants.IconPacks.Custom),
-                            iconPackTarget = IconCacheTarget.HOME
+                            iconPackTarget = IconCacheTarget.HOME,
+                            activityClass = appModel.activityClass
                         )
 
                         // Use the drawable

@@ -48,6 +48,7 @@ internal const val SETTINGS_LOCKED = "SETTINGS_LOCKED"
 internal const val HIDE_SEARCH_VIEW = "HIDE_SEARCH_VIEW"
 internal const val DRAWER_BLUR_RADIUS = "DRAWER_BLUR_RADIUS"
 internal const val CLOCK_STICKER_SIZE = "CLOCK_STICKER_SIZE"
+internal const val MONO_ICON_FALLBACK = "MONO_ICON_FALLBACK"
 
 
 // Clock / Daily Word / Floating
