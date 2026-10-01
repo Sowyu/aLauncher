@@ -36,6 +36,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.children
 import androidx.core.view.isVisible
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -70,6 +72,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.initActionService
 import com.github.codeworkscreativehub.mlauncher.helper.ismlauncherDefault
 import com.github.codeworkscreativehub.mlauncher.helper.receivers.DeviceAdmin
 import com.github.codeworkscreativehub.mlauncher.helper.setTopPadding
+import com.github.codeworkscreativehub.mlauncher.helper.updateHomeWidget
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
 import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
 import com.github.codeworkscreativehub.mlauncher.listener.GestureAdapter
@@ -137,6 +140,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         updateUIFromPreferences()
 
         setupDrawer(savedInstanceState)
+        setupEditMode()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -145,6 +149,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     override fun onDestroyView() {
+        _binding?.homeAppsLayout?.exitEditMode(animate = false)
         drawerAnimator?.cancel()
         drawerAnimator = null
         super.onDestroyView()
@@ -1040,7 +1045,15 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     private fun View.getHomeScreenGestureListener() {
         this.attachGestureManager(requireContext(), object : GestureAdapter() {
+            override fun onSingleTap() {
+                if (homeEditing()) exitEditMode()
+            }
+
             override fun onShortSwipeLeft() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.shortSwipeLeftAction) {
                     Action.OpenApp -> openSwipeLeftApp()
                     else -> handleOtherAction(action)
@@ -1049,6 +1062,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onLongSwipeLeft() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.longSwipeLeftAction) {
                     Action.OpenApp -> openLongSwipeLeftApp()
                     else -> handleOtherAction(action)
@@ -1057,6 +1074,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onShortSwipeRight() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.shortSwipeRightAction) {
                     Action.OpenApp -> openSwipeRightApp()
                     else -> handleOtherAction(action)
@@ -1065,6 +1086,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onLongSwipeRight() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.longSwipeRightAction) {
                     Action.OpenApp -> openLongSwipeRightApp()
                     else -> handleOtherAction(action)
@@ -1073,6 +1098,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onShortSwipeUp() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.shortSwipeUpAction) {
                     Action.OpenApp -> openSwipeUpApp()
                     else -> handleOtherAction(action)
@@ -1081,6 +1110,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onLongSwipeUp() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.longSwipeUpAction) {
                     Action.OpenApp -> openLongSwipeUpApp()
                     else -> handleOtherAction(action)
@@ -1089,6 +1122,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onShortSwipeDown() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.shortSwipeDownAction) {
                     Action.OpenApp -> openSwipeDownApp()
                     else -> handleOtherAction(action)
@@ -1097,6 +1134,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onLongSwipeDown() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.longSwipeDownAction) {
                     Action.OpenApp -> openLongSwipeDownApp()
                     else -> handleOtherAction(action)
@@ -1105,11 +1146,17 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onLongPress() {
+                if (homeEditing()) return
                 CrashHandler.logUserAction("LongPress Gesture")
-                trySettings()
+                // Long-press on empty space edits the home list; Settings lives in the edit bar
+                enterEditMode()
             }
 
             override fun onDoubleTap() {
+                if (homeEditing()) {
+                    exitEditMode()
+                    return
+                }
                 when (val action = prefs.doubleTapAction) {
                     Action.OpenApp -> openDoubleTapApp()
                     else -> handleOtherAction(action)
@@ -1197,6 +1244,80 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
 
+    // ------------------------------------------------------------------ home edit mode
+    //
+    // Long-press on empty space: rows jiggle and can be dragged into a new order. Taps on rows
+    // don't launch while editing. Tap empty space, back, home or Done to leave.
+
+    private var editBackCallback: OnBackPressedCallback? = null
+
+    private fun homeEditing(): Boolean = _binding?.homeAppsLayout?.editMode == true
+
+    private fun setupEditMode() {
+        val b = binding
+        b.homeAppsLayout.onReorder = { from, to -> reorderHomeApps(from, to) }
+        b.editDone.setOnClickListener { exitEditMode() }
+        b.editSettings.setOnClickListener {
+            exitEditMode(animate = false)
+            trySettings()
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(b.editBar) { v, insets ->
+            val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            (v.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin =
+                nav + (24 * resources.displayMetrics.density).toInt()
+            v.requestLayout()
+            insets
+        }
+        val cb = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() = exitEditMode()
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, cb)
+        editBackCallback = cb
+    }
+
+    private fun enterEditMode() {
+        val b = _binding ?: return
+        if (drawerProgress > 0f || homeEditing()) return
+        b.homeAppsLayout.enterEditMode()
+        b.editBar.animate().cancel()
+        b.editBar.visibility = View.VISIBLE
+        b.editBar.animate().alpha(1f).setDuration(180).start()
+        editBackCallback?.isEnabled = true
+    }
+
+    fun exitEditMode(animate: Boolean = true) {
+        val b = _binding ?: return
+        if (!homeEditing()) return
+        b.homeAppsLayout.exitEditMode(animate)
+        editBackCallback?.isEnabled = false
+        b.editBar.animate().cancel()
+        if (animate) {
+            b.editBar.animate().alpha(0f).setDuration(160)
+                .withEndAction { _binding?.editBar?.visibility = View.GONE }.start()
+        } else {
+            b.editBar.alpha = 0f
+            b.editBar.visibility = View.GONE
+        }
+    }
+
+    /** Persist a drag: move slot [from] to [to], shifting the slots in between, then rebuild rows. */
+    private fun reorderHomeApps(from: Int, to: Int) {
+        val count = prefs.homeAppsNum
+        if (from !in 0 until count || to !in 0 until count || from == to) return
+        val apps = (0 until count).map { prefs.getHomeAppModel(it) }.toMutableList()
+        apps.add(to, apps.removeAt(from))
+        apps.forEachIndexed { i, app -> prefs.setHomeAppModel(i, app) }
+
+        val b = _binding ?: return
+        b.homeAppsLayout.removeAllViews()
+        updateAppCount(count)
+        viewModel.homeAppsAlignment.value?.let { (gravity, _) ->
+            b.homeAppsLayout.children.forEach { (it as? TextView)?.gravity = gravity.value() }
+        }
+        b.homeAppsLayout.onRowsRebuilt()
+        context?.let { updateHomeWidget(it) }
+    }
+
     // ------------------------------------------------------------------ app drawer overlay
     //
     // The drawer lives in drawerContainer as a child fragment and is revealed by a progress value
@@ -1223,7 +1344,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         binding.homeRoot.callback = object : VerticalDragLayout.Callback {
             override fun shouldStartDrag(downX: Float, downY: Float, dy: Float): Boolean =
-                dy < 0 && drawerProgress == 0f && interactiveDrawerEnabled() && drawerFragment != null
+                dy < 0 && drawerProgress == 0f && !homeEditing() && interactiveDrawerEnabled() && drawerFragment != null
 
             override fun onDragStart() = onDrawerDragStart()
             override fun onDrag(dy: Float) = onDrawerDrag(dy)

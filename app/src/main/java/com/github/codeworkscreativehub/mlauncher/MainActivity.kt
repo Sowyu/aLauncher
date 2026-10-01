@@ -538,6 +538,7 @@ class MainActivity : AppCompatActivity() {
         if (navController.currentDestination?.id != R.id.mainFragment)
             navController.popBackStack(R.id.mainFragment, false)
         homeFragment()?.closeDrawer(animate = animateDrawer)
+        homeFragment()?.exitEditMode(animate = animateDrawer)
     }
 
     /** The home screen fragment, if it is the current destination. */

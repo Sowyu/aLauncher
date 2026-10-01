@@ -94,7 +94,7 @@
 
 
     <!-- Home apps-->
-    <LinearLayout
+    <com.github.codeworkscreativehub.mlauncher.ui.components.ReorderableLinearLayout
         android:id="@+id/homeAppsLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -199,6 +199,33 @@
             android:elevation="6dp"
             android:src="@drawable/app_launcher" />
 
+    </LinearLayout>
+
+    <!-- Edit mode (long-press empty space): Settings and Done -->
+    <LinearLayout
+        android:id="@+id/editBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:alpha="0"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/editSettings"
+            style="@style/HomeEditPill"
+            android:text="@string/home_edit_settings" />
+
+        <Space
+            android:layout_width="12dp"
+            android:layout_height="1dp" />
+
+        <TextView
+            android:id="@+id/editDone"
+            style="@style/HomeEditPill"
+            android:text="@string/home_edit_done" />
     </LinearLayout>
 
 </FrameLayout>

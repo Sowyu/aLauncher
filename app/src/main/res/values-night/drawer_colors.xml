@@ -7,4 +7,5 @@
     <color name="drawer_search_icon">#B8A9B8</color>
     <!-- Tint over the frosted pill (~45%) -->
     <color name="drawer_search_tint">#731E1826</color>
+    <color name="home_edit_pill_text">#E4B9E2</color>
 </resources>
