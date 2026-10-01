@@ -19,7 +19,6 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AnimationUtils
 import android.view.inputmethod.InputMethodManager
 import android.widget.RelativeLayout
 import android.widget.TextView
@@ -35,6 +34,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.SimpleItemAnimator
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.hasSoftKeyboard
@@ -194,11 +194,11 @@ class AppDrawerFragment : BaseFragment() {
             binding.azSidebar.onLetterSelected = { section ->
                 when (binding.menuView.displayedChild) {
                     0 -> appMap[section]?.let { index ->
-                        binding.appsRecyclerView.smoothScrollToPosition(index)
+                        jumpToSection(binding.appsRecyclerView, index)
                     }
 
                     1 -> contactMap[section]?.let { index ->
-                        binding.contactsRecyclerView.smoothScrollToPosition(index)
+                        jumpToSection(binding.contactsRecyclerView, index)
                     }
                 }
             }
@@ -252,6 +252,12 @@ class AppDrawerFragment : BaseFragment() {
 
         binding.appsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.contactsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        listOf(binding.appsRecyclerView, binding.contactsRecyclerView).forEach { rv ->
+            // match_parent in both directions, so content changes never resize the view
+            rv.setHasFixedSize(true)
+            // No cross-fade when a row changes (menu open/close, rename)
+            (rv.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+        }
         binding.appsRecyclerView.adapter = appAdapter
         binding.contactsRecyclerView.adapter = contactAdapter
 
@@ -717,7 +723,8 @@ class AppDrawerFragment : BaseFragment() {
             viewModel.getContactList()
         }
         if (requireContext().hasSoftKeyboard()) {
-            binding.search.showKeyboard()
+            // Wait out the 280ms drawer_enter animation so the IME resize doesn't jolt it
+            binding.search.showKeyboard(delayMs = 300)
         }
     }
 
@@ -729,19 +736,17 @@ class AppDrawerFragment : BaseFragment() {
     }
 
 
-    private fun View.showKeyboard() {
+    private fun View.showKeyboard(delayMs: Long = 100) {
         val prefs = Prefs(requireContext())
         if (!prefs.autoShowKeyboard) return
         if (prefs.hideSearchView) return
 
         val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
-        searchTextView.requestFocus()
-
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         searchTextView.postDelayed({
             searchTextView.requestFocus()
             imm.showSoftInput(searchTextView, 0)
-        }, 100)
+        }, delayMs)
     }
 
     private fun View.hideKeyboard() {
@@ -753,9 +758,6 @@ class AppDrawerFragment : BaseFragment() {
 
 
     private fun populateAppList(apps: List<AppListItem>, appAdapter: AppDrawerAdapter) {
-        val animation =
-            AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_anim_from_bottom)
-        binding.appsRecyclerView.layoutAnimation = animation
         appAdapter.setAppList(apps.toMutableList())
 
         // ✅ ENABLE dynamic AZ letters
@@ -763,9 +765,6 @@ class AppDrawerFragment : BaseFragment() {
     }
 
     private fun populateContactList(contacts: List<ContactListItem>, contactAdapter: ContactDrawerAdapter) {
-        val animation =
-            AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_anim_from_bottom)
-        binding.contactsRecyclerView.layoutAnimation = animation
         contactAdapter.setContactList(contacts.toMutableList())
 
         // ✅ ENABLE dynamic AZ letters
@@ -843,6 +842,16 @@ class AppDrawerFragment : BaseFragment() {
         viewModel.selectedContact(this, contactModel, n)
         // Close the drawer or fragment after selection
         findNavController().popBackStack()
+    }
+
+    /** Instant jump that puts the section's first row at the top of the list. */
+    private fun jumpToSection(recyclerView: RecyclerView, index: Int) {
+        val count = recyclerView.adapter?.itemCount ?: return
+        if (index !in 0 until count) return
+        recyclerView.stopScroll()
+        // Both drawer lists use a plain top-down LinearLayoutManager (not reversed)
+        (recyclerView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(index, 0)
+            ?: recyclerView.scrollToPosition(index)
     }
 
     private fun updateAZSidebarForApps(apps: List<AppListItem>) {

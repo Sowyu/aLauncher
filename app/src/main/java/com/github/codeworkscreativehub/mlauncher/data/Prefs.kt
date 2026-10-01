@@ -593,7 +593,7 @@ class Prefs(val context: Context) {
 
     var fontFamily: Constants.FontFamily
         get() {
-            return getEnumSetting(LAUNCHER_FONT, Constants.FontFamily.System)
+            return getEnumSetting(LAUNCHER_FONT, Constants.FontFamily.GoogleSansFlex)
         }
         set(value) = prefsNormal.edit { putString(LAUNCHER_FONT, value.name) }
 

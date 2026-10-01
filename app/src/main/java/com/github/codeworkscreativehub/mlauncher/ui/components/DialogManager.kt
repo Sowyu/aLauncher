@@ -535,7 +535,7 @@ class DialogManager(val context: Context, val activity: Activity) {
 
                 (view as TextView).apply {
                     text = itemStrings[position]
-                    typeface = fonts?.getOrNull(position) ?: Typeface.DEFAULT
+                    typeface = fonts?.getOrNull(position) ?: com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context) ?: Typeface.DEFAULT
                     textSize = fontSize
                     setTextColor(if (position == currentSelected) selectedColor else defaultColor)
                 }
@@ -657,7 +657,7 @@ class DialogManager(val context: Context, val activity: Activity) {
                 text = item
                 textSize = fontSize
                 gravity = Gravity.CENTER
-                typeface = fonts?.getOrNull(index) ?: Typeface.DEFAULT
+                typeface = fonts?.getOrNull(index) ?: com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context) ?: Typeface.DEFAULT
                 setPadding(48, 24, 48, 24)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -977,7 +977,7 @@ class DialogManager(val context: Context, val activity: Activity) {
                 leftContainer.addView(TextView(context).apply {
                     text = leftTitle
                     setTextColor(Color.WHITE)
-                    setTypeface(null, Typeface.BOLD)
+                    setTypeface(com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context), Typeface.BOLD)
                     textSize = 18f
                 })
                 leftContainer.addView(TextView(context).apply {
@@ -1011,7 +1011,7 @@ class DialogManager(val context: Context, val activity: Activity) {
                     card.addView(TextView(context).apply {
                         text = title
                         setTextColor(Color.WHITE)
-                        setTypeface(null, Typeface.BOLD)
+                        setTypeface(com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context), Typeface.BOLD)
                         textSize = 18f
                     })
                     card.addView(TextView(context).apply {
@@ -1082,7 +1082,7 @@ class DialogManager(val context: Context, val activity: Activity) {
                     card.addView(TextView(context).apply {
                         text = title
                         setTextColor(Color.WHITE)
-                        setTypeface(null, Typeface.BOLD)
+                        setTypeface(com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context), Typeface.BOLD)
                         textSize = 18f
                     })
 

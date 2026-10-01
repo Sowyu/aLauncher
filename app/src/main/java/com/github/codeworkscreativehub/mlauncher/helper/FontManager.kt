@@ -2,6 +2,8 @@ package com.github.codeworkscreativehub.mlauncher.helper
 
 import android.content.Context
 import android.graphics.Typeface
+import androidx.core.content.res.ResourcesCompat
+import com.github.codeworkscreativehub.mlauncher.R
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
@@ -31,13 +33,29 @@ object FontManager {
                 }
 
                 else -> fontFamily.getFont(context)
-            }
+            } ?: bundledTypeface(context)
 
             cachedTypeface
         } catch (e: Exception) {
             AppLogger.e("FontManager", "Error loading typeface", e)
+            bundledTypeface(context)
+        }
+    }
+
+    /** Bundled Google Sans Flex (rounded); used whenever no other font resolves. */
+    fun bundledTypeface(context: Context): Typeface? =
+        try {
+            ResourcesCompat.getFont(context, R.font.google_sans_flex)
+        } catch (e: Exception) {
+            AppLogger.e("FontManager", "Error loading bundled typeface", e)
             null
         }
+
+    /** True when the active typeface is the bundled multi-weight family (Compose can use real weights). */
+    fun isBundled(context: Context): Boolean {
+        val family = Prefs(context).fontFamily
+        return family == Constants.FontFamily.GoogleSansFlex ||
+                (family == Constants.FontFamily.Custom && !File(context.filesDir, "CustomFont.ttf").exists())
     }
 
     fun register(view: CustomFontView) {

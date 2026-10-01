@@ -1,7 +1,8 @@
 <resources>
 
     <style name="Theme.mLauncher" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:fontFamily">@android:fontFamily/system_font</item>
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
 
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowTranslucentStatus">true</item>
@@ -97,17 +98,21 @@
     </style>
 
     <style name="MaterialDialogTheme" parent="Theme.AppCompat.DayNight.Dialog">
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
         <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
     </style>
 
     <style name="AppTheme.MaterialDialog" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
         <!-- Optional: Override colors if needed -->
         <item name="colorPrimary">?attr/primaryColor</item>
         <item name="colorSurface">@color/background_light</item>
     </style>
 
     <style name="TextDefaultStyle" parent="@android:style/TextAppearance.Large">
-        <item name="android:fontFamily">@android:fontFamily/system_font</item>
+        <item name="android:fontFamily">@font/google_sans_flex</item>
 
         <item name="android:shadowColor">?attr/primaryTextShadowColor</item>
         <item name="android:shadowDx">1</item>

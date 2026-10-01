@@ -62,6 +62,7 @@ import androidx.core.net.toUri
 import com.github.codeworkscreativehub.mlauncher.R
 import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.services.HapticFeedbackService
+import com.github.codeworkscreativehub.mlauncher.style.GoogleSansFlex
 import com.github.codeworkscreativehub.mlauncher.style.SettingsTheme
 import com.github.creativecodecat.components.views.FontAppCompatTextView
 import kotlinx.coroutines.Job
@@ -550,11 +551,10 @@ object SettingsComposable {
         val context = LocalContext.current
 
         // Get Typeface from FontManager (like your FontEditText)
-        val typeface = remember { FontManager.getTypeface(context) }
-
-        // Convert Typeface to Compose FontFamily
-        val fontFamily: FontFamily = remember(typeface) {
-            typeface?.let { FontFamily(it) } ?: FontFamily.Default
+        // Bundled font keeps real weights; a user font file becomes a single-face family
+        val fontFamily: FontFamily = remember {
+            if (FontManager.isBundled(context)) GoogleSansFlex
+            else FontManager.getTypeface(context)?.let { FontFamily(it) } ?: GoogleSansFlex
         }
 
         val finalStyle = (style ?: TextStyle()).copy(

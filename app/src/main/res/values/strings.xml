@@ -377,6 +377,7 @@
     <string name="light">Light</string>
     <string name="system_default">System</string>
     <string name="system_custom">Custom</string>
+    <string name="settings_font_google_sans_flex" translatable="false">Google Sans Flex</string>
     <string name="system_custom_plus">Custom (%1$s)</string>
     <string name="restart_launcher">Restart Launcher</string>
     <string name="delete">Delete</string>

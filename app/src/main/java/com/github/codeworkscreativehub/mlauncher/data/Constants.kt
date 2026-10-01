@@ -486,6 +486,7 @@ object Constants {
     enum class FontFamily : EnumOption {
         System,
         Custom,
+        GoogleSansFlex,
         Bitter,
         Doto,
         FiraCode,
@@ -501,6 +502,7 @@ object Constants {
         fun getFont(context: Context): Typeface? {
             return when (this) {
                 System -> getTrueSystemFont()
+                GoogleSansFlex -> ResourcesCompat.getFont(context, R.font.google_sans_flex)
                 Bitter -> ResourcesCompat.getFont(context, R.font.bitter)
                 Doto -> ResourcesCompat.getFont(context, R.font.doto)
                 FiraCode -> ResourcesCompat.getFont(context, R.font.fira_code)
@@ -519,9 +521,9 @@ object Constants {
                             Typeface.createFromFile(customFontFile)
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            getTrueSystemFont()
+                            ResourcesCompat.getFont(context, R.font.google_sans_flex)
                         }
-                    } else getTrueSystemFont()
+                    } else ResourcesCompat.getFont(context, R.font.google_sans_flex)
                 }
             }
         }
@@ -529,6 +531,7 @@ object Constants {
         fun getString(): String {
             return when (this) {
                 System -> getLocalizedString(R.string.system_default)
+                GoogleSansFlex -> getLocalizedString(R.string.settings_font_google_sans_flex)
                 Bitter -> getLocalizedString(R.string.settings_font_bitter)
                 Doto -> getLocalizedString(R.string.settings_font_doto)
                 FiraCode -> getLocalizedString(R.string.settings_font_firacode)
@@ -548,6 +551,7 @@ object Constants {
         override fun string(): String {
             return when (this) {
                 System -> getLocalizedString(R.string.system_default)
+                GoogleSansFlex -> getLocalizedString(R.string.settings_font_google_sans_flex)
                 Bitter -> getLocalizedString(R.string.settings_font_bitter)
                 Doto -> getLocalizedString(R.string.settings_font_doto)
                 FiraCode -> getLocalizedString(R.string.settings_font_firacode)

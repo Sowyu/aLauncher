@@ -416,7 +416,7 @@ class WidgetFragment : Fragment() {
             val labelView = TextView(requireContext()).apply {
                 text = group.appName
                 textSize = 16f
-                setTypeface(null, Typeface.BOLD)
+                setTypeface(com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context), Typeface.BOLD)
                 setPadding(16, 0, 0, 0)
             }
             val expandIcon = TextView(requireContext()).apply { text = "▼"; textSize = 16f }
@@ -459,7 +459,7 @@ class WidgetFragment : Fragment() {
                     text = widgetSize
                     textSize = 14f
                     gravity = Gravity.END
-                    setTypeface(null, Typeface.ITALIC)
+                    setTypeface(com.github.codeworkscreativehub.mlauncher.helper.FontManager.getTypeface(context), Typeface.ITALIC)
                 }
 
                 widgetRow.addView(labelView)

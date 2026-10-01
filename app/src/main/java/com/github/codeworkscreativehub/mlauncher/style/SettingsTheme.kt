@@ -1,6 +1,9 @@
 package com.github.codeworkscreativehub.mlauncher.style
 
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Typography
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -11,6 +14,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.github.codeworkscreativehub.mlauncher.R
+
+/** Bundled Google Sans Flex (rounded), real weights 400 to 700. */
+val GoogleSansFlex = FontFamily(
+    Font(R.font.google_sans_flex_regular, FontWeight.Normal),
+    Font(R.font.google_sans_flex_medium, FontWeight.Medium),
+    Font(R.font.google_sans_flex_semibold, FontWeight.SemiBold),
+    Font(R.font.google_sans_flex_bold, FontWeight.Bold),
+)
 
 @Immutable
 data class ReplacementTypography(
@@ -111,6 +122,7 @@ fun SettingsTheme(
         LocalReplacementColor provides replacementColor,
     ) {
         MaterialTheme(
+            typography = Typography(defaultFontFamily = GoogleSansFlex),
             content = content
         )
     }
