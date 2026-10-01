@@ -188,4 +188,5 @@
     <string name="st_mono_icons_sub">Apps the icon pack misses get a matching white glyph, at home and in the app list</string>
     <string name="st_sticker_holo">Holo effect</string>
     <string name="st_sticker_holo_sub">Foil shimmer that follows how you tilt the phone</string>
+    <string name="st_sticker_holo_intensity">Holo intensity</string>
 </resources>
