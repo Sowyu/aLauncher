@@ -256,7 +256,6 @@ fun Context.openWebBrowser() {
     CrashHandler.logUserAction("Default Browser App Launched")
 }
 
-
 fun Context.getDefaultBrowserPackageName(): String? {
     val sendIntent = Intent(Intent.ACTION_VIEW, "https://google.com".toUri())
     val resolveInfo = packageManager.resolveActivity(sendIntent, PackageManager.MATCH_DEFAULT_ONLY)
@@ -264,49 +263,6 @@ fun Context.getDefaultBrowserPackageName(): String? {
         ?.activityInfo
         ?.packageName
         ?.takeUnless { it == "android" }
-}
-
-
-fun Context.openBatteryManager() {
-    try {
-        val sendIntent = Intent(Intent.ACTION_POWER_USAGE_SUMMARY).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        this.startActivity(sendIntent)
-    } catch (_: ActivityNotFoundException) {
-        showLongToast("Battery manager settings are not available on this device.")
-    }
-    CrashHandler.logUserAction("Battery Manager Launched")
-}
-
-fun Context.openDigitalWellbeing() {
-    // Known Digital Wellbeing packages and their main activity
-    val wellbeingMap = mapOf(
-        "com.google.android.apps.wellbeing" to "com.google.android.apps.wellbeing.settings.TopLevelSettingsActivity",
-        "com.samsung.android.forest" to "com.samsung.android.forest.settings.MainActivity",
-        "com.samsung.android.wellbeing" to "com.samsung.android.wellbeing.SamsungWellbeingSettingsActivity"
-    )
-
-    val installedPackages = packageManager.getInstalledPackages(0).map { it.packageName }
-
-    val wellbeingEntry = wellbeingMap.entries.firstOrNull { it.key in installedPackages }
-
-    if (wellbeingEntry != null) {
-        val (pkg, cls) = wellbeingEntry
-        val intent = Intent().apply {
-            component = ComponentName(pkg, cls)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-
-        try {
-            startActivity(intent)
-            CrashHandler.logUserAction("Digital Wellbeing Launched")
-        } catch (_: ActivityNotFoundException) {
-            showLongToast("Unable to launch Digital Wellbeing.")
-        }
-    } else {
-        showLongToast("Digital Wellbeing is not available on this device.")
-    }
 }
 
 fun Context.searchOnPlayStore(query: String? = null): Boolean {
@@ -377,7 +333,6 @@ fun getLocalizedStringArray(@ArrayRes resId: Int): Array<String> {
     return context.getStringArray(resId)
 }
 
-
 fun Context.openAccessibilitySettings() {
     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
     val cs = ComponentName(this.packageName, ActionService::class.java.name).flattenToString()
@@ -390,19 +345,6 @@ fun Context.openAccessibilitySettings() {
     }
     this.startActivity(intent)
     CrashHandler.logUserAction("Accessibility Settings Opened")
-}
-
-fun Context.requestUsagePermission() {
-    try {
-        val context: Context = this
-        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-            data = "package:${context.packageName}".toUri()  // Open settings for YOUR app only
-        }
-        context.startActivity(intent)
-        CrashHandler.logUserAction("Usage Permission Settings Opened")
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
 }
 
 fun Context.requestRuntimePermission(

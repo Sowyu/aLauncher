@@ -29,7 +29,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -49,25 +48,19 @@ import com.github.codeworkscreativehub.mlauncher.data.AppCategory
 import com.github.codeworkscreativehub.mlauncher.data.AppListItem
 import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
-import com.github.codeworkscreativehub.mlauncher.data.ContactListItem
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentAppDrawerBinding
 import com.github.codeworkscreativehub.mlauncher.helper.ChineseSortHelper
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.getHexForOpacity
-import com.github.codeworkscreativehub.mlauncher.helper.hasContactsPermission
-import com.github.codeworkscreativehub.mlauncher.helper.ismlauncherDefault
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
-import com.github.codeworkscreativehub.mlauncher.helper.utils.PrivateSpaceManager
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
-import com.github.codeworkscreativehub.mlauncher.ui.adapter.ContactDrawerAdapter
 
 class AppDrawerFragment : BaseFragment() {
 
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
     private lateinit var appsAdapter: AppDrawerAdapter
-    private lateinit var contactsAdapter: ContactDrawerAdapter
 
     private var _binding: FragmentAppDrawerBinding? = null
     private val binding get() = _binding!!
@@ -130,8 +123,6 @@ class AppDrawerFragment : BaseFragment() {
 
             sidebarContainer.layoutParams = layoutParams
 
-            menuView.displayedChild = 0
-
             mainLayout.setOnClickListener {
                 appsAdapter.closeOpenedMenu()
             }
@@ -166,7 +157,6 @@ class AppDrawerFragment : BaseFragment() {
             AppDrawerFlag.SetLongSwipeUp,
             AppDrawerFlag.SetLongSwipeDown,
             AppDrawerFlag.SetClickClock,
-            AppDrawerFlag.SetAppUsage,
             AppDrawerFlag.SetClickDate,
             AppDrawerFlag.SetFloating -> {
             }
@@ -181,29 +171,11 @@ class AppDrawerFragment : BaseFragment() {
             ViewModelProvider(this)[MainViewModel::class.java]
         } ?: throw Exception("Invalid Activity")
 
-        val combinedScrollMaps = MediatorLiveData<Pair<Map<String, Int>, Map<String, Int>>>()
-
-        combinedScrollMaps.addSource(viewModel.appScrollMap) { appMap ->
-            combinedScrollMaps.value = Pair(appMap, viewModel.contactScrollMap.value ?: emptyMap())
-        }
-        combinedScrollMaps.addSource(viewModel.contactScrollMap) { contactMap ->
-            combinedScrollMaps.value = Pair(viewModel.appScrollMap.value ?: emptyMap(), contactMap)
-        }
-
-        combinedScrollMaps.observe(viewLifecycleOwner) { (appMap, contactMap) ->
+        viewModel.appScrollMap.observe(viewLifecycleOwner) { appMap ->
             binding.azSidebar.onLetterSelected = { section ->
-                when (binding.menuView.displayedChild) {
-                    0 -> appMap[section]?.let { index ->
-                        jumpToSection(binding.appsRecyclerView, index)
-                    }
-
-                    1 -> contactMap[section]?.let { index ->
-                        jumpToSection(binding.contactsRecyclerView, index)
-                    }
-                }
+                appMap[section]?.let { index -> jumpToSection(binding.appsRecyclerView, index) }
             }
         }
-
 
         val gravity = when (Prefs(requireContext()).drawerAlignment) {
             Constants.Gravity.Left -> Gravity.LEFT
@@ -228,38 +200,25 @@ class AppDrawerFragment : BaseFragment() {
             }
         }
 
-        val contactAdapter = context?.let {
-            parentFragment?.let { _ ->
-                ContactDrawerAdapter(
-                    it,
-                    gravity,
-                    contactClickListener(viewModel, n)
-                )
-            }
-        }
-
         appAdapter?.let { appsAdapter = it }
-        contactAdapter?.let { contactsAdapter = it }
 
         val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
 
         val textSize = prefs.appSize.toFloat()
         searchTextView.textSize = textSize
 
-        if (appAdapter != null && contactAdapter != null) {
-            initViewModel(flag, viewModel, appAdapter, contactAdapter, profileType)
+        if (appAdapter != null) {
+            initViewModel(flag, viewModel, appAdapter, profileType)
         }
 
         binding.appsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        binding.contactsRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        listOf(binding.appsRecyclerView, binding.contactsRecyclerView).forEach { rv ->
+        binding.appsRecyclerView.apply {
             // match_parent in both directions, so content changes never resize the view
-            rv.setHasFixedSize(true)
+            setHasFixedSize(true)
             // No cross-fade when a row changes (menu open/close, rename)
-            (rv.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+            (itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+            adapter = appAdapter
         }
-        binding.appsRecyclerView.adapter = appAdapter
-        binding.contactsRecyclerView.adapter = contactAdapter
 
         var lastSectionLetter: String? = null
 
@@ -332,75 +291,13 @@ class AppDrawerFragment : BaseFragment() {
             }
         })
 
-        binding.contactsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            var onTop = false
-
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-                val itemCount = layoutManager.itemCount
-                if (itemCount == 0) return
-
-                val firstVisible = layoutManager.findFirstVisibleItemPosition()
-                val lastVisible = layoutManager.findLastVisibleItemPosition()
-                if (firstVisible == RecyclerView.NO_POSITION || lastVisible == RecyclerView.NO_POSITION) return
-
-                val position = when {
-                    firstVisible <= 1 -> firstVisible
-                    lastVisible >= itemCount - 2 -> lastVisible
-                    else -> (firstVisible + lastVisible) / 2
-                }.coerceIn(0, itemCount - 1)
-
-                val item = contactAdapter?.getItemAt(position) ?: return
-
-                val sectionLetter = item.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: return
-
-                // Skip redundant updates
-                if (sectionLetter == lastSectionLetter) return
-                lastSectionLetter = sectionLetter
-
-                binding.azSidebar.setSelectedLetter(sectionLetter)
-            }
-
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                super.onScrollStateChanged(recyclerView, newState)
-                when (newState) {
-
-                    RecyclerView.SCROLL_STATE_DRAGGING -> {
-                        onTop = !recyclerView.canScrollVertically(-1)
-                        if (onTop) {
-                            if (requireContext().hasSoftKeyboard()) {
-                                binding.search.hideKeyboard()
-                            }
-                        }
-                        if (onTop && !recyclerView.canScrollVertically(1)) {
-                            findNavController().popBackStack()
-                        }
-                    }
-
-                    RecyclerView.SCROLL_STATE_IDLE -> {
-                        if (!recyclerView.canScrollVertically(1)) {
-                            binding.search.hideKeyboard()
-                        } else if (!recyclerView.canScrollVertically(-1)) {
-                            if (onTop) {
-                                findNavController().popBackStack()
-                            } else {
-                                if (requireContext().hasSoftKeyboard()) {
-                                    binding.search.showKeyboard()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })
-
         if (prefs.hideSearchView) {
             binding.search.isVisible = false
         } else {
             val appListButtonFlags = prefs.getMenuFlags("APPLIST_BUTTON_FLAGS", "00")
             when (flag) {
                 AppDrawerFlag.LaunchApp -> {
-                    setupProfileButtons(flag, viewModel, appAdapter, contactAdapter, profileType)
+                    setupProfileButtons(flag, viewModel, appAdapter, profileType)
 
                     binding.internetSearch.apply {
                         isVisible = appListButtonFlags[0]
@@ -408,26 +305,6 @@ class AppDrawerFragment : BaseFragment() {
                             val query = binding.search.query.toString().trim()
                             if (query.isEmpty()) return@setOnClickListener
                             requireContext().searchCustomSearchEngine(query, prefs)
-                        }
-                    }
-                    binding.searchSwitcher.apply {
-                        if (hasContactsPermission(context)) {
-                            when (profileType) {
-                                "WORK", "PRIVATE" -> isVisible = false
-                                else -> {
-                                    isVisible = appListButtonFlags[1]
-                                    setOnClickListener {
-                                        switchMenus()
-                                        binding.contactsRecyclerView.post {
-                                            appsAdapter.closeOpenedMenu()
-                                        }
-                                    }
-                                }
-
-                            }
-                        } else {
-                            isVisible = false
-                            binding.menuView.displayedChild = 0
                         }
                     }
                 }
@@ -455,24 +332,11 @@ class AppDrawerFragment : BaseFragment() {
                     // Hashtag shortcut
                     if (searchQuery.startsWith("#")) return true
 
-                    when (binding.menuView.displayedChild) {
-                        0 -> { // appsAdapter
-                            val firstItem = appAdapter?.getFirstInList()
-                            if (firstItem.equals(searchQuery, ignoreCase = true) || prefs.openAppOnEnter) {
-                                appAdapter?.launchFirstInList()
-                            } else {
-                                requireContext().searchOnPlayStore(searchQuery)
-                            }
-                        }
-
-                        1 -> { // contactsAdapter
-                            val firstItem = contactAdapter?.getFirstInList()
-                            if (firstItem.equals(searchQuery, ignoreCase = true) || prefs.openAppOnEnter) {
-                                contactAdapter?.launchFirstInList()
-                            } else {
-                                requireContext().searchOnPlayStore(searchQuery)
-                            }
-                        }
+                    val firstItem = appAdapter?.getFirstInList()
+                    if (firstItem.equals(searchQuery, ignoreCase = true) || prefs.openAppOnEnter) {
+                        appAdapter?.launchFirstInList()
+                    } else {
+                        requireContext().searchOnPlayStore(searchQuery)
                     }
 
                     return true
@@ -488,12 +352,7 @@ class AppDrawerFragment : BaseFragment() {
                     }
                 }
 
-                newText?.let {
-                    when (binding.menuView.displayedChild) {
-                        0 -> appAdapter?.filter?.filter(it.trim())
-                        1 -> contactAdapter?.filter?.filter(it.trim())
-                    }
-                }
+                newText?.let { appAdapter?.filter?.filter(it.trim()) }
                 return false
             }
         })
@@ -503,7 +362,6 @@ class AppDrawerFragment : BaseFragment() {
         flag: AppDrawerFlag,
         viewModel: MainViewModel,
         appAdapter: AppDrawerAdapter?,
-        contactAdapter: ContactDrawerAdapter?,
         profileType: String
     ) {
         var currentProfileType = profileType
@@ -512,29 +370,22 @@ class AppDrawerFragment : BaseFragment() {
             currentProfileType = profileType
 
             val isWorkProfileAvailable = prefs.getProfileCounter("WORK") > 0 && profileType != "WORK"
-            val isPrivateProfileAvailable = prefs.getProfileCounter("PRIVATE") > 0 &&
-                    profileType != "PRIVATE" &&
-                    !PrivateSpaceManager(requireContext()).isPrivateSpaceLocked() &&
-                    ismlauncherDefault(requireContext())
             val isSystemProfileAvailable = prefs.getProfileCounter("SYSTEM") > 0 && profileType != "SYSTEM"
 
             binding.workApps.isVisible = isWorkProfileAvailable
-            binding.privateApps.isVisible = isPrivateProfileAvailable
             binding.systemApps.isVisible = isSystemProfileAvailable
 
             binding.search.queryHint = when (profileType) {
                 "WORK" -> getLocalizedString(R.string.show_work_apps)
-                "PRIVATE" -> getLocalizedString(R.string.show_private_apps)
                 else -> getLocalizedString(R.string.show_apps)
             }
         }
 
         fun onProfileClicked(newType: String) {
-            binding.menuView.displayedChild = 0
-            if (appAdapter != null && contactAdapter != null) {
-                initViewModel(flag, viewModel, appAdapter, contactAdapter, newType)
+            if (appAdapter != null) {
+                initViewModel(flag, viewModel, appAdapter, newType)
             }
-            setAppViewDetails()
+            binding.search.setQuery("", false)
             updateProfileUI(newType)
         }
 
@@ -545,53 +396,11 @@ class AppDrawerFragment : BaseFragment() {
         binding.workApps.setOnClickListener {
             onProfileClicked("WORK")
         }
-        binding.privateApps.setOnClickListener {
-            onProfileClicked("PRIVATE")
-        }
         binding.systemApps.setOnClickListener {
             onProfileClicked("SYSTEM")
         }
     }
 
-
-    fun switchMenus() {
-        if (!hasContactsPermission(requireContext())) {
-            binding.menuView.displayedChild = 0
-            setAppViewDetails()
-            return
-        }
-        binding.apply {
-            menuView.showNext()
-            when (menuView.displayedChild) {
-                0 -> {
-                    setAppViewDetails()
-                    updateAZSidebarForApps(appsAdapter.appsList)
-                }
-
-                1 -> {
-                    setContactViewDetails()
-                    updateAZSidebarForContacts(contactsAdapter.contactsList)
-                }
-            }
-        }
-    }
-
-
-    private fun setAppViewDetails() {
-        binding.apply {
-            searchSwitcher.setImageResource(R.drawable.ic_contacts)
-            search.queryHint = getLocalizedString(R.string.show_apps)
-            search.setQuery("", false)
-        }
-    }
-
-    private fun setContactViewDetails() {
-        binding.apply {
-            searchSwitcher.setImageResource(R.drawable.ic_apps)
-            search.queryHint = getLocalizedString(R.string.show_contacts)
-            search.setQuery("", false)
-        }
-    }
 
     private fun applyTextColor(text: String, color: Int): SpannableString {
         val spannableString = SpannableString(text)
@@ -640,8 +449,7 @@ class AppDrawerFragment : BaseFragment() {
         flag: AppDrawerFlag,
         viewModel: MainViewModel,
         appAdapter: AppDrawerAdapter,
-        contactAdapter: ContactDrawerAdapter,
-        profileFilter: String? = null // "PRIVATE", "WORK", "SYSTEM", "USER", or null for all
+        profileFilter: String? = null // "WORK", "SYSTEM", "USER", or null for all
     ) {
         fun <T> observeList(
             liveData: LiveData<List<T>?>,
@@ -666,22 +474,15 @@ class AppDrawerFragment : BaseFragment() {
             skipCondition = { flag != AppDrawerFlag.HiddenApps }
         )
 
-        // 🔹 Observe contacts
-        observeList(
-            viewModel.contactList, contactAdapter.contactsList,
-            onPopulate = { populateContactList(it, contactAdapter) },
-            skipCondition = { !hasContactsPermission(requireContext()) || binding.menuView.displayedChild != 0 }
-        )
-
         // 🔹 Observe apps
         viewModel.appList.observe(viewLifecycleOwner) { rawAppList ->
             if (flag == AppDrawerFlag.HiddenApps) return@observe
-            if (rawAppList == appAdapter.appsList || binding.menuView.displayedChild != 0) return@observe
+            if (rawAppList == appAdapter.appsList) return@observe
 
             AppLogger.d("Apps", "Loaded ${rawAppList?.size ?: 0} raw apps")
             rawAppList?.let { list ->
                 val appsByProfile = list.groupBy { it.profileType }
-                val allProfiles = listOf("SYSTEM", "PRIVATE", "WORK", "USER")
+                val allProfiles = listOf("SYSTEM", "WORK", "USER")
 
                 // Update prefs counters
                 allProfiles.forEach { profile ->
@@ -713,15 +514,6 @@ class AppDrawerFragment : BaseFragment() {
 
     override fun onResume() {
         super.onResume()
-        if (!hasContactsPermission(requireContext())) {
-            if (binding.menuView.displayedChild == 1) {
-                binding.menuView.displayedChild = 0
-                setAppViewDetails()
-            }
-            binding.searchSwitcher.isVisible = false
-        } else {
-            viewModel.getContactList()
-        }
         if (requireContext().hasSoftKeyboard()) {
             // Wait out the 280ms drawer_enter animation so the IME resize doesn't jolt it
             binding.search.showKeyboard(delayMs = 300)
@@ -762,13 +554,6 @@ class AppDrawerFragment : BaseFragment() {
 
         // ✅ ENABLE dynamic AZ letters
         updateAZSidebarForApps(apps)
-    }
-
-    private fun populateContactList(contacts: List<ContactListItem>, contactAdapter: ContactDrawerAdapter) {
-        contactAdapter.setContactList(contacts.toMutableList())
-
-        // ✅ ENABLE dynamic AZ letters
-        updateAZSidebarForContacts(contacts)
     }
 
     private fun appClickListener(
@@ -834,16 +619,6 @@ class AppDrawerFragment : BaseFragment() {
         findNavController().popBackStack(R.id.mainFragment, false)
     }
 
-    // Handles click on a contact item
-    private fun contactClickListener(
-        viewModel: MainViewModel,
-        n: Int = 0
-    ): (contactItem: ContactListItem) -> Unit = { contactModel ->
-        viewModel.selectedContact(this, contactModel, n)
-        // Close the drawer or fragment after selection
-        findNavController().popBackStack()
-    }
-
     /** Instant jump that puts the section's first row at the top of the list. */
     private fun jumpToSection(recyclerView: RecyclerView, index: Int) {
         val count = recyclerView.adapter?.itemCount ?: return
@@ -867,14 +642,6 @@ class AppDrawerFragment : BaseFragment() {
                 }
             }
         }
-
-        binding.azSidebar.setAvailableLetters(letters)
-    }
-
-    private fun updateAZSidebarForContacts(contacts: List<ContactListItem>) {
-        val letters = contacts.mapNotNull {
-            it.displayName.firstOrNull()?.uppercaseChar()?.toString()
-        }.toSet()
 
         binding.azSidebar.setAvailableLetters(letters)
     }

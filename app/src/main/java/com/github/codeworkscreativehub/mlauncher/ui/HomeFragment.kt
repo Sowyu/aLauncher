@@ -6,13 +6,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.Vibrator
 import android.text.Spannable
 import android.text.SpannableString
@@ -27,7 +24,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
-import android.widget.Space
 import android.widget.TextView
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.NotificationManagerCompat
@@ -39,18 +35,15 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.ColorIconsExtensions
-import com.github.codeworkscreativehub.common.ColorManager
 import com.github.codeworkscreativehub.common.CrashHandler
 import com.github.codeworkscreativehub.common.attachGestureManager
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.isGestureNavigationEnabled
 import com.github.codeworkscreativehub.common.launchCalendar
 import com.github.codeworkscreativehub.common.openAlarmApp
-import com.github.codeworkscreativehub.common.openBatteryManager
 import com.github.codeworkscreativehub.common.openCameraApp
 import com.github.codeworkscreativehub.common.openDeviceSettings
 import com.github.codeworkscreativehub.common.openDialerApp
-import com.github.codeworkscreativehub.common.openDigitalWellbeing
 import com.github.codeworkscreativehub.common.openPhotosApp
 import com.github.codeworkscreativehub.common.openTextMessagesApp
 import com.github.codeworkscreativehub.common.openWebBrowser
@@ -65,56 +58,31 @@ import com.github.codeworkscreativehub.mlauncher.databinding.FragmentHomeBinding
 import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.helper.IconCacheTarget
 import com.github.codeworkscreativehub.mlauncher.helper.IconPackHelper.getSafeAppIcon
-import com.github.codeworkscreativehub.mlauncher.helper.WeatherHelper
-import com.github.codeworkscreativehub.mlauncher.helper.analytics.AppUsageMonitor
-import com.github.codeworkscreativehub.mlauncher.helper.formatMillisToHMS
 import com.github.codeworkscreativehub.mlauncher.helper.getHexForOpacity
-import com.github.codeworkscreativehub.mlauncher.helper.getNextAlarm
 import com.github.codeworkscreativehub.mlauncher.helper.getSystemIcons
-import com.github.codeworkscreativehub.mlauncher.helper.hasUsageAccessPermission
 import com.github.codeworkscreativehub.mlauncher.helper.initActionService
 import com.github.codeworkscreativehub.mlauncher.helper.ismlauncherDefault
-import com.github.codeworkscreativehub.mlauncher.helper.openFirstWeatherApp
-import com.github.codeworkscreativehub.mlauncher.helper.receivers.BatteryReceiver
 import com.github.codeworkscreativehub.mlauncher.helper.receivers.DeviceAdmin
-import com.github.codeworkscreativehub.mlauncher.helper.receivers.PrivateSpaceReceiver
 import com.github.codeworkscreativehub.mlauncher.helper.setTopPadding
-import com.github.codeworkscreativehub.mlauncher.helper.showPermissionDialog
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
 import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
-import com.github.codeworkscreativehub.mlauncher.helper.utils.PrivateSpaceManager
-import com.github.codeworkscreativehub.mlauncher.helper.wordOfTheDay
 import com.github.codeworkscreativehub.mlauncher.listener.GestureAdapter
 import com.github.codeworkscreativehub.mlauncher.listener.NotificationDotManager
 import com.github.codeworkscreativehub.mlauncher.services.ActionService
-import com.github.codeworkscreativehub.mlauncher.ui.components.DialogManager
-import com.github.codeworkscreativehub.mlauncher.ui.widgets.WidgetActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListener {
 
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
-    private lateinit var dialogBuilder: DialogManager
     private lateinit var deviceManager: DevicePolicyManager
-    private lateinit var batteryReceiver: BatteryReceiver
     private lateinit var biometricHelper: BiometricHelper
-    private lateinit var weatherHelper: WeatherHelper
-    private lateinit var privateSpaceReceiver: PrivateSpaceReceiver
     private lateinit var vibrator: Vibrator
 
     private var longPressToSelectApp: Int = 0
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
-
-    private fun getDayOfYearText(): String {
-        val cal = Calendar.getInstance()
-        val day = cal.get(Calendar.DAY_OF_YEAR)
-        val max = cal.getActualMaximum(Calendar.DAY_OF_YEAR)
-        return "[$day/$max]"
-    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -125,11 +93,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         val view = binding.root
         prefs = Prefs(requireContext())
-        batteryReceiver = BatteryReceiver(binding.battery, prefs)
-        dialogBuilder = DialogManager(requireContext(), requireActivity())
-        if (PrivateSpaceManager(requireContext()).isPrivateSpaceSupported()) {
-            privateSpaceReceiver = PrivateSpaceReceiver()
-        }
 
         longPressToSelectApp = if (prefs.homeLocked) {
             R.string.long_press_to_select_app_locked
@@ -160,7 +123,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         initAppObservers()
         initClickListeners()
         initSwipeTouchListener()
-        initPermissionCheck()
         initObservers()
 
         // Update view appearance/settings based on prefs
@@ -173,63 +135,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         // Handle status bar once per view creation
         setTopPadding(binding.mainLayout)
 
-        weatherHelper = WeatherHelper(
-            requireContext(),
-            viewLifecycleOwner
-        ) { weatherText ->
-            binding.weather.textSize = prefs.batterySize.toFloat()
-            binding.weather.setTextColor(prefs.batteryColor)
-            binding.weather.text = weatherText
-            binding.weather.isVisible = true
-        }
-
-        // Weather updates
-        if (prefs.showWeather) {
-            weatherHelper.getWeather()
-        } else {
-            binding.weather.isVisible = false
-        }
-
         // Update dynamic UI elements
         updateTimeAndInfo()
-
-        // Register battery receiver
-        context?.let { ctx ->
-            binding.battery.let { textView ->
-                batteryReceiver = BatteryReceiver(textView, prefs)
-                val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-                // Register receiver
-                val stickyIntent = ctx.registerReceiver(batteryReceiver, intentFilter)
-                // Immediately update UI with sticky intent
-                stickyIntent?.let { batteryReceiver.onReceive(ctx, it) }
-            }
-
-            // Register private space receiver if supported
-            if (PrivateSpaceManager(ctx).isPrivateSpaceSupported()) {
-                privateSpaceReceiver = PrivateSpaceReceiver()
-                ctx.registerReceiver(privateSpaceReceiver, IntentFilter(Intent.ACTION_PROFILE_AVAILABLE))
-            }
-        }
     }
-
-    override fun onStop() {
-        super.onStop()
-
-        context?.let { ctx ->
-            try {
-                batteryReceiver.let { ctx.unregisterReceiver(it) }
-                if (PrivateSpaceManager(requireContext()).isPrivateSpaceSupported()) {
-                    privateSpaceReceiver.let { ctx.unregisterReceiver(it) }
-                }
-            } catch (e: IllegalArgumentException) {
-                // Receiver not registered — safe to ignore
-                e.printStackTrace()
-            }
-        }
-
-        dismissDialogs()
-    }
-
 
     private fun updateUIFromPreferences() {
         val locale = prefs.appLanguage.locale()
@@ -258,40 +166,21 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             // Static UI setup
             date.textSize = prefs.dateSize.toFloat()
             clock.textSize = prefs.clockSize.toFloat()
-            alarm.textSize = prefs.alarmSize.toFloat()
-            dailyWord.textSize = prefs.dailyWordSize.toFloat()
-            battery.textSize = prefs.batterySize.toFloat()
             homeScreenPager.textSize = prefs.appSize.toFloat()
 
-            battery.isVisible = prefs.showBattery
             mainLayout.setBackgroundColor(getHexForOpacity(prefs))
 
             date.setTextColor(prefs.dateColor)
             clock.setTextColor(prefs.clockColor)
-            alarm.setTextColor(prefs.alarmClockColor)
-            dailyWord.setTextColor(prefs.dailyWordColor)
-            battery.setTextColor(prefs.batteryColor)
-            totalScreenTime.setTextColor(prefs.appColor)
             setDefaultLauncher.setTextColor(prefs.appColor)
 
             val fabList = listOf(fabPhone, fabMessages, fabCamera, fabPhotos, fabBrowser, fabSettings, fabAction)
             val fabFlags = prefs.getMenuFlags("HOME_BUTTON_FLAGS", "0000011") // Might return list of wrong size
-            val colors = ColorManager.getRandomHueColors(prefs.shortcutIconsColor, fabList.size)
-
             for (i in fabList.indices) {
                 val fab = fabList[i]
-
-                val isVisible = if (i < fabFlags.size) fabFlags[i] else false
-                val color = colors[i]
-
-                fab.isVisible = isVisible
-
-                // Skip recoloring for fabAction
-                if (fab != fabAction) {
-                    fab.setColorFilter(
-                        if (prefs.iconRainbowColors) color else prefs.shortcutIconsColor
-                    )
-                }
+                fab.isVisible = fabFlags.getOrElse(i) { false }
+                // The logo keeps its own colours
+                if (fab != fabAction) fab.setColorFilter(prefs.shortcutIconsColor)
             }
         }
     }
@@ -323,21 +212,20 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
             val basePattern = DateFormat.getBestDateTimePattern(locale, "EEEddMMM")
 
+            // Day of year as a quoted literal, refreshed whenever the home screen starts
             val finalPattern = if (prefs.showDayOfYear) {
-                "$basePattern   ${getDayOfYearText()}"
+                val cal = java.util.Calendar.getInstance()
+                val day = cal.get(java.util.Calendar.DAY_OF_YEAR)
+                val max = cal.getActualMaximum(java.util.Calendar.DAY_OF_YEAR)
+                "$basePattern   '[$day/$max]'"
             } else {
                 basePattern
             }
 
             date.format12Hour = finalPattern
             date.format24Hour = finalPattern
-
-
-            alarm.text = getNextAlarm(requireContext(), prefs)
-            dailyWord.text = wordOfTheDay(prefs)
         }
     }
-
 
     override fun onClick(view: View) {
         when (view.id) {
@@ -357,28 +245,13 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                 CrashHandler.logUserAction("Date Clicked")
             }
 
-            R.id.totalScreenTime -> {
-                when (val action = prefs.clickAppUsageAction) {
-                    Action.OpenApp -> openClickUsageApp()
-                    else -> handleOtherAction(action)
-                }
-                CrashHandler.logUserAction("TotalScreenTime Clicked")
-            }
 
             R.id.setDefaultLauncher -> {
                 viewModel.resetDefaultLauncherApp(requireContext())
                 CrashHandler.logUserAction("SetDefaultLauncher Clicked")
             }
 
-            R.id.battery -> {
-                context?.openBatteryManager()
-                CrashHandler.logUserAction("Battery Clicked")
-            }
 
-            R.id.weather -> {
-                context?.openFirstWeatherApp()
-                CrashHandler.logUserAction("Weather Clicked")
-            }
 
             R.id.fabPhone -> {
                 context?.openDialerApp()
@@ -433,7 +306,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         if (prefs.homeLocked) return true
 
         val n = view.id
-        showAppList(AppDrawerFlag.SetHomeApp, includeHiddenApps = true, includeRecentApps = false, n)
+        showAppList(AppDrawerFlag.SetHomeApp, includeHiddenApps = true, n = n)
         CrashHandler.logUserAction("Show App List")
         return true
     }
@@ -443,28 +316,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.touchArea.getHomeScreenGestureListener()
     }
 
-    private fun initPermissionCheck() {
-        val context = requireContext()
-        if (prefs.recentAppsDisplayed || prefs.appUsageStats) {
-            // Check if the usage permission is not granted
-            if (!hasUsageAccessPermission(context)) {
-                // Postpone showing the dialog until the activity is running
-                Handler(Looper.getMainLooper()).post {
-                    // Instantiate MainActivity and pass it to showPermissionDialog
-                    showPermissionDialog(context)
-                }
-            }
-        }
-    }
-
     private fun initClickListeners() {
         binding.apply {
             clock.setOnClickListener(this@HomeFragment)
             date.setOnClickListener(this@HomeFragment)
-            totalScreenTime.setOnClickListener(this@HomeFragment)
             setDefaultLauncher.setOnClickListener(this@HomeFragment)
-            battery.setOnClickListener(this@HomeFragment)
-            weather.setOnClickListener(this@HomeFragment)
 
             fabPhone.setOnClickListener(this@HomeFragment)
             fabMessages.setOnClickListener(this@HomeFragment)
@@ -475,7 +331,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             fabSettings.setOnClickListener(this@HomeFragment)
         }
     }
-
 
     private fun initAppObservers() {
         binding.apply {
@@ -494,11 +349,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         with(viewModel) {
             homeAppsNum.observe(viewLifecycleOwner) {
-                if (prefs.appUsageStats) {
-                    updateAppCountWithUsageStats(it)
-                } else {
-                    updateAppCount(it)
-                }
+                updateAppCount(it)
             }
             launcherDefault.observe(viewLifecycleOwner) {
                 binding.setDefaultLauncher.isVisible = it
@@ -516,12 +367,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
             showClock.observe(viewLifecycleOwner) {
                 binding.clock.isVisible = it
-            }
-            showAlarm.observe(viewLifecycleOwner) {
-                binding.alarm.isVisible = it
-            }
-            showDailyWord.observe(viewLifecycleOwner) {
-                binding.dailyWord.isVisible = it
             }
 
             clockAlignment.observe(viewLifecycleOwner) { clockGravity ->
@@ -544,36 +389,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                     }
             }
 
-            alarmAlignment.observe(viewLifecycleOwner) { alarmGravity ->
-                binding.alarm.gravity = alarmGravity.value()
 
-                // Set layout_gravity to align the TextView (alarm) within the parent (LinearLayout)
-                binding.alarm.layoutParams =
-                    (binding.alarm.layoutParams as LinearLayout.LayoutParams).apply {
-                        gravity = alarmGravity.value()
-                    }
-            }
-
-            dailyWordAlignment.observe(viewLifecycleOwner) { dailyWordGravity ->
-                binding.dailyWord.gravity = dailyWordGravity.value()
-
-                // Set layout_gravity to align the TextView (alarm) within the parent (LinearLayout)
-                binding.dailyWord.layoutParams =
-                    (binding.dailyWord.layoutParams as LinearLayout.LayoutParams).apply {
-                        gravity = dailyWordGravity.value()
-                    }
-            }
 
             homeAppsAlignment.observe(viewLifecycleOwner) { (homeAppsGravity, onBottom) ->
                 val horizontalAlignment = if (onBottom) Gravity.BOTTOM else Gravity.CENTER_VERTICAL
                 binding.homeAppsLayout.gravity = homeAppsGravity.value() or horizontalAlignment
 
                 binding.homeAppsLayout.children.forEach { view ->
-                    if (prefs.appUsageStats) {
-                        (view as LinearLayout).gravity = homeAppsGravity.value()
-                    } else {
-                        (view as TextView).gravity = homeAppsGravity.value()
-                    }
+                    (view as? TextView)?.gravity = homeAppsGravity.value()
                 }
             }
         }
@@ -585,8 +408,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         else viewModel.launchApp(prefs.getHomeAppModel(location), this)
     }
 
-    private fun showAppList(flag: AppDrawerFlag, includeHiddenApps: Boolean = false, includeRecentApps: Boolean = true, n: Int = 0) {
-        viewModel.getAppList(includeHiddenApps, includeRecentApps)
+    private fun showAppList(flag: AppDrawerFlag, includeHiddenApps: Boolean = false, n: Int = 0) {
+        viewModel.getAppList(includeHiddenApps)
         CrashHandler.logUserAction("Display App List")
         try {
             if (findNavController().currentDestination?.id == R.id.mainFragment) {
@@ -598,17 +421,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                         putString("profileType", "SYSTEM")
                     }
                 )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun showNotesManager() {
-        CrashHandler.logUserAction("Display Notes Manager")
-        try {
-            if (findNavController().currentDestination?.id == R.id.mainFragment) {
-                findNavController().navigate(R.id.action_mainFragment_to_notesManagerFragment)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -713,14 +525,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             requireContext().openAlarmApp()
     }
 
-    private fun openClickUsageApp() {
-        CrashHandler.logUserAction("Open Usage App")
-        if (prefs.appClickUsage.activityPackage.isNotEmpty())
-            viewModel.launchApp(prefs.appClickUsage, this)
-        else
-            requireContext().openDigitalWellbeing()
-    }
-
     private fun openClickDateApp() {
         CrashHandler.logUserAction("Open Date App")
         if (prefs.appClickDate.activityPackage.isNotEmpty())
@@ -742,7 +546,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         if (prefs.appFloating.activityPackage.isNotEmpty())
             viewModel.launchApp(prefs.appFloating, this)
         else
-            findNavController().navigate(R.id.action_mainFragment_to_notesManagerFragment)
+            showAppList(AppDrawerFlag.LaunchApp)
     }
 
     // This function handles all swipe actions that an independent of the actual swipe direction
@@ -751,10 +555,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         when (action) {
             Action.ShowNotification -> expandNotificationDrawer(requireContext())
             Action.LockScreen -> lockPhone()
-            Action.TogglePrivateSpace -> PrivateSpaceManager(requireContext()).togglePrivateSpaceLock(showToast = false, launchSettings = false)
             Action.ShowAppList -> showAppList(AppDrawerFlag.LaunchApp, includeHiddenApps = false)
-            Action.ShowNotesManager -> showNotesManager()
-            Action.ShowDigitalWellbeing -> requireContext().openDigitalWellbeing()
             Action.OpenQuickSettings -> expandQuickSettings(requireContext())
             Action.ShowRecents -> initActionService(requireContext())?.showRecents()
             Action.OpenPowerDialog -> initActionService(requireContext())?.openPowerDialog()
@@ -762,7 +563,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             Action.PreviousPage -> navigateToPreviousPage()
             Action.NextPage -> navigateToNextPage()
             Action.RestartApp -> AppReloader.restartApp(requireContext())
-            Action.ShowWidgetPage -> showWidgetPage()
             Action.OpenApp -> {
                 // this should be handled in the respective onSwipe[Up,Down,Right,Left] functions
             }
@@ -772,14 +572,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
         }
-    }
-
-    private fun showWidgetPage() {
-        val context = requireContext()
-        val intent = Intent(context, WidgetActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        context.startActivity(intent)
     }
 
     private fun lockPhone() {
@@ -809,162 +601,27 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         }
     }
 
-
     private fun showLongPressToast() = showShortToast(getLocalizedString(longPressToSelectApp))
 
     private fun textOnClick(view: View) = onClick(view)
 
     private fun textOnLongClick(view: View) = onLongClick(view)
 
-
-    @SuppressLint("InflateParams", "ClickableViewAccessibility")
-    private fun updateAppCountWithUsageStats(newAppsNum: Int) {
-        val appUsageMonitor = AppUsageMonitor.getInstance(requireContext())
-        val oldAppsNum = binding.homeAppsLayout.childCount // current number of apps
-        val diff = newAppsNum - oldAppsNum
-
-        if (diff > 0) {
-            // Add new apps
-            for (i in oldAppsNum until newAppsNum) {
-                // Create a horizontal LinearLayout to hold both existingAppView and newAppView
-                val parentLinearLayout = LinearLayout(context)
-                parentLinearLayout.apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, // Use MATCH_PARENT for full width
-                        ViewGroup.LayoutParams.WRAP_CONTENT
-                    )
-                }
-
-                // Create existingAppView
-                val existingAppView =
-                    layoutInflater.inflate(R.layout.home_app_button, null) as TextView
-                existingAppView.apply {
-                    // Set properties of existingAppView
-                    textSize = prefs.appSize.toFloat()
-                    id = i
-                    text = prefs.getHomeAppModel(i).activityLabel
-                    getHomeAppsGestureListener()
-                    setOnClickListener(this@HomeFragment)
-                    if (!prefs.extendHomeAppsArea) {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                    }
-                    val padding: Int = prefs.textPaddingSize
-                    setPadding(0, padding, 0, padding)
-                    setTextColor(prefs.appColor)
-                }
-
-                // Create newAppView
-                val newAppView = TextView(context)
-                newAppView.apply {
-                    // Set properties of newAppView
-                    textSize = prefs.appSize.toFloat() / 1.5f
-                    id = i
-                    text = formatMillisToHMS(
-                        appUsageMonitor.getUsageStats(
-                            context,
-                            prefs.getHomeAppModel(i).activityPackage
-                        ), false
-                    )
-                    getHomeAppsGestureListener()
-                    setOnClickListener(this@HomeFragment)
-                    if (!prefs.extendHomeAppsArea) {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                    }
-                    val padding: Int = prefs.textPaddingSize
-                    setPadding(0, padding, 0, padding)
-                    setTextColor(prefs.appColor)
-                }
-
-                // Add a space between existingAppView and newAppView
-                val space = Space(context)
-                space.layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    1f // Weight to fill available space
-                )
-
-                // Add existingAppView to parentLinearLayout
-                parentLinearLayout.addView(existingAppView)
-                // Add space and newAppView to parentLinearLayout
-                parentLinearLayout.addView(space)
-                parentLinearLayout.addView(newAppView)
-
-                // Add parentLinearLayout to homeAppsLayout
-                binding.homeAppsLayout.addView(parentLinearLayout)
-            }
-        } else if (diff < 0) {
-            // Remove extra apps
-            binding.homeAppsLayout.removeViews(oldAppsNum + diff, -diff)
-        }
-
-        // Create a new TextView instance
-        val totalText = getLocalizedString(R.string.total_screen_time)
-        val totalTime = appUsageMonitor.getTotalScreenTime(requireContext())
-        val totalScreenTime = formatMillisToHMS(totalTime, true)
-        AppLogger.d("totalScreenTime", totalScreenTime)
-        val totalScreenTimeJoin = "$totalText: $totalScreenTime"
-        // Set properties for the TextView (optional)
-        binding.totalScreenTime.apply {
-            text = totalScreenTimeJoin
-            if (totalTime > 300L) { // Checking if totalTime is greater than 5 minutes (300,000 milliseconds)
-                isVisible = true
-            }
-        }
-
-        // Update the total number of pages and calculate maximum apps per page
-        updatePagesAndAppsPerPage(prefs.homeAppsNum, prefs.homePagesNum)
-        adjustTextViewMargins()
-    }
-
     private fun adjustTextViewMargins() {
         binding.apply {
 
-            privateLayout.apply {
-                // Set visibility based on both private space setup and hide logo preference
-                isVisible = PrivateSpaceManager(requireContext()).isPrivateSpaceSetUp() && prefs.showPrivateSpaces
-
-                // Initial icon
-                fun updatePrivateFabIcon() {
-                    val isLocked = PrivateSpaceManager(requireContext()).isPrivateSpaceLocked()
-                    val iconRes = if (isLocked) R.drawable.private_profile_on
-                    else R.drawable.private_profile_off
-                    privateFab.setImageResource(iconRes)
-                }
-
-                updatePrivateFabIcon() // set initial icon
-
-                privateFab.setOnClickListener {
-                    // Toggle lock
-                    PrivateSpaceManager(requireContext()).togglePrivateSpaceLock(
-                        showToast = false,
-                        launchSettings = false
-                    )
-                    // Update icon after toggle
-                    updatePrivateFabIcon()
-                }
-            }
 
             val views = listOf(
                 setDefaultLauncher,
-                totalScreenTime,
                 homeScreenPager,
                 fabLayout,
-                homeAppsLayout,
-                privateLayout
+                homeAppsLayout
             )
 
             // Check if device is using gesture navigation or 3-button navigation
             val isGestureNav = isGestureNavigationEnabled(requireContext())
 
-            val numOfElements = 6
+            val numOfElements = 4
             val incrementBy = 35
             // Set margins based on navigation mode
             val margins = if (isGestureNav) {
@@ -1009,7 +666,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
         }
     }
-
 
     @SuppressLint("InflateParams", "DiscouragedApi", "UseCompatLoadingForDrawables", "ClickableViewAccessibility")
     private fun updateAppCount(newAppsNum: Int) {
@@ -1190,7 +846,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         adjustTextViewMargins()
     }
 
-
     private val homeScreenPager = "HomeScreenPager"
 
     private var currentPage = 0
@@ -1305,7 +960,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         AppLogger.d(homeScreenPager, "getTotalAppsCount: $count")
         return count
     }
-
 
     private fun trySettings() {
         lifecycleScope.launch(Dispatchers.Main) {
@@ -1517,15 +1171,4 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         })
     }
 
-    private fun dismissDialogs() {
-        dialogBuilder.backupRestoreBottomSheet?.dismiss()
-        dialogBuilder.saveLoadThemeBottomSheet?.dismiss()
-        dialogBuilder.saveDownloadWOTDBottomSheet?.dismiss()
-        dialogBuilder.singleChoiceBottomSheetPill?.dismiss()
-        dialogBuilder.singleChoiceBottomSheet?.dismiss()
-        dialogBuilder.colorPickerBottomSheet?.dismiss()
-        dialogBuilder.sliderBottomSheet?.dismiss()
-        dialogBuilder.flagSettingsBottomSheet?.dismiss()
-        dialogBuilder.showDeviceBottomSheet?.dismiss()
-    }
 }

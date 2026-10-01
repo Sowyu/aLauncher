@@ -48,17 +48,14 @@ import com.github.codeworkscreativehub.common.CrashHandler
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.getLocalizedStringArray
 import com.github.codeworkscreativehub.common.openAccessibilitySettings
-import com.github.codeworkscreativehub.common.requestUsagePermission
 import com.github.codeworkscreativehub.common.showLongToast
 import com.github.codeworkscreativehub.mlauncher.BuildConfig
 import com.github.codeworkscreativehub.mlauncher.R
 import com.github.codeworkscreativehub.mlauncher.data.Constants
-import com.github.codeworkscreativehub.mlauncher.data.Message
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.helper.utils.packageNames
 import com.github.codeworkscreativehub.mlauncher.services.ActionService
 import com.github.codeworkscreativehub.mlauncher.ui.widgets.home.HomeAppsWidgetProvider
-import com.github.codeworkscreativehub.mlauncher.ui.widgets.wordoftheday.WordOfTheDayWidget
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -88,54 +85,6 @@ val iconPackBlacklist = listOf(
     "ginlemon.iconpackstudio"
 )
 
-fun hasUsageAccessPermission(context: Context): Boolean {
-    val appOpsManager = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    val mode = appOpsManager.checkOpNoThrow(
-        AppOpsManager.OPSTR_GET_USAGE_STATS,
-        Process.myUid(),
-        context.packageName
-    )
-    return mode == AppOpsManager.MODE_ALLOWED
-}
-
-fun hasLocationPermission(context: Context): Boolean {
-    val fineLocationPermission = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
-    val coarseLocationPermission = ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    )
-
-    return fineLocationPermission == PackageManager.PERMISSION_GRANTED ||
-            coarseLocationPermission == PackageManager.PERMISSION_GRANTED
-}
-
-fun hasContactsPermission(context: Context): Boolean {
-    return ContextCompat.checkSelfPermission(
-        context,
-        Manifest.permission.READ_CONTACTS
-    ) == PackageManager.PERMISSION_GRANTED
-}
-
-
-fun showPermissionDialog(context: Context) {
-    CrashHandler.logUserAction("Show Usage Permission Dialog")
-    val builder = MaterialAlertDialogBuilder(context)
-    builder.setTitle(getLocalizedString(R.string.permission_required))
-    builder.setMessage(getLocalizedString(R.string.access_usage_data_permission))
-    builder.setPositiveButton(getLocalizedString(R.string.goto_settings)) { dialogInterface: DialogInterface, _: Int ->
-        dialogInterface.dismiss()
-        context.requestUsagePermission()
-    }
-    builder.setNegativeButton(getLocalizedString(R.string.cancel)) { dialogInterface: DialogInterface, _: Int ->
-        dialogInterface.dismiss()
-    }
-    val dialog = builder.create()
-    dialog.show()
-}
-
 fun getUserHandleFromString(context: Context, userHandleString: String): UserHandle {
     val userManager = context.getSystemService(Context.USER_SERVICE) as UserManager
     for (userHandle in userManager.userProfiles) {
@@ -144,64 +93,6 @@ fun getUserHandleFromString(context: Context, userHandleString: String): UserHan
         }
     }
     return Process.myUserHandle()
-}
-
-fun getNextAlarm(context: Context, prefs: Prefs): CharSequence {
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val is24HourFormat = DateFormat.is24HourFormat(context)
-    val nextAlarmClock = alarmManager.nextAlarmClock ?: return "No alarm is set."
-
-    val alarmTime = nextAlarmClock.triggerTime
-    val timezone =
-        prefs.appLanguage.locale()  // Assuming this returns a string like "America/New_York"
-    val formattedDate = DateFormat.getBestDateTimePattern(timezone, "eeeddMMM")
-    val best12 = DateFormat.getBestDateTimePattern(
-        timezone,
-        if (prefs.showClockFormat) "hhmma" else "hhmm"
-    ).let {
-        if (!prefs.showClockFormat) it.removeSuffix(" a") else it
-    }
-    val best24 = DateFormat.getBestDateTimePattern(timezone, "HHmm")
-    val formattedTime = if (is24HourFormat) best24 else best12
-    val formattedAlarm =
-        SimpleDateFormat("$formattedDate $formattedTime", Locale.getDefault()).format(alarmTime)
-
-    val drawable = AppCompatResources.getDrawable(context, R.drawable.ic_alarm_clock)
-    val fontSize = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_SP,
-        (prefs.alarmSize / 1.5).toFloat(),
-        context.resources.displayMetrics
-    ).toInt()
-
-    drawable?.apply {
-        setBounds(0, 0, fontSize, fontSize)
-        val colorFilterColor: ColorFilter =
-            PorterDuffColorFilter(prefs.alarmClockColor, PorterDuff.Mode.SRC_IN)
-        drawable.colorFilter = colorFilterColor
-    }
-
-    val imageSpan = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        ImageSpan(drawable!!, ImageSpan.ALIGN_CENTER)
-    } else {
-        CenteredImageSpan(drawable!!)
-    }
-
-    return SpannableStringBuilder(" ").apply {
-        setSpan(
-            imageSpan,
-            0, 1,
-            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        append(" $formattedAlarm")
-    }
-}
-
-fun wordOfTheDay(prefs: Prefs): String {
-    val dailyWordsArray = loadWordList(prefs)
-    val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-    val wordIndex =
-        (dayOfYear - 1) % dailyWordsArray.size // Subtracting 1 to align with array indexing
-    return dailyWordsArray[wordIndex]
 }
 
 fun ismlauncherDefault(context: Context): Boolean {
@@ -224,67 +115,6 @@ fun reloadLauncher() {
         exitProcess(0)
     }, 100)
 }
-
-fun helpFeedbackButton(context: Context) {
-    val uri = "https://github.com/CodeWorksCreativeHub/mLauncher".toUri()
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    context.startActivity(intent)
-}
-
-fun themeDownloadButton(context: Context) {
-    val uri = "https://mlauncher.5646316.xyz/themes.html#themes".toUri()
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    context.startActivity(intent)
-}
-
-fun wordofthedayDownloadButton(context: Context) {
-    val uri = "https://mlauncher.5646316.xyz/themes.html#word-of-the-day".toUri()
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    context.startActivity(intent)
-}
-
-fun communitySupportButton(context: Context) {
-    val uri = "https://discord.com/invite/modmydevice".toUri()
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    context.startActivity(intent)
-}
-
-fun checkWhoInstalled(context: Context): String {
-    val appName = getLocalizedString(R.string.app_name)
-    val descriptionTemplate =
-        getLocalizedString(R.string.advanced_settings_share_application_description)
-    val descriptionTemplate2 =
-        getLocalizedString(R.string.advanced_settings_share_application_description_addon)
-
-    val installerPackageName: String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        // For API level 30 and above
-        val installSourceInfo = context.packageManager.getInstallSourceInfo(context.packageName)
-        installSourceInfo.installingPackageName
-    } else {
-        // For below API level 30
-        @Suppress("DEPRECATION")
-        context.packageManager.getInstallerPackageName(context.packageName)
-    }
-
-    // Handle null installer package name
-    val installSource = when (installerPackageName) {
-        "com.android.vending" -> "Google Play Store"
-        else -> installerPackageName // Default to the installer package name
-    }
-
-    val installURL = when (installerPackageName) {
-        "com.android.vending" -> "https://play.google.com/store/apps/details?id=app.mlauncher"
-        else -> "https://play.google.com/store/apps/details?id=app.mlauncher" // Default to the Google Play Store
-    }
-
-    // Format the description with the app name and install source
-    return String.format(
-        "%s %s",
-        String.format(descriptionTemplate, appName),
-        String.format(descriptionTemplate2, installSource, installURL)
-    )
-}
-
 
 fun openAppInfo(context: Context, userHandle: UserHandle, packageName: String) {
     val launcher = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -407,18 +237,6 @@ fun sp2px(resources: Resources, sp: Float): Float {
     )
 }
 
-
-fun loadWordList(prefs: Prefs): List<String> {
-    val customWordListString = prefs.wordList
-    // If the user has imported their own list, use it
-    return if (customWordListString != emptyString()) {
-        prefs.wordList.split("||")
-    } else {
-        getLocalizedStringArray(R.array.word_of_the_day).toList()
-    }
-}
-
-
 fun getHexForOpacity(prefs: Prefs): Int {
     // Convert the opacity percentage (0-100) to a reversed decimal (0.0-1.0)
     val setOpacity = ((100 - prefs.opacityNum.coerceIn(
@@ -495,154 +313,6 @@ fun getTrueSystemFont(): Typeface {
     return Typeface.DEFAULT
 }
 
-fun sortMessages(messages: List<Message>): List<Message> {
-    return messages.sortedWith(
-        compareBy<Message> {
-            when (it.priority) {
-                "High" -> 0
-                "Medium" -> 1
-                "Low" -> 2
-                else -> 3
-            }
-        }.thenByDescending { it.timestamp }
-    )
-}
-
-fun Context.openFirstWeatherApp() {
-    val pm = this.packageManager
-    AppLogger.d("WeatherAppLauncher", "Starting search for weather apps...")
-
-    // --- Option 1: Known weather apps ---
-    val knownWeatherPackages = listOf(
-        "com.accuweather.android",             // AccuWeather
-        "com.weather.Weather",                 // The Weather Channel
-        "com.windyty.android",                 // Windy.com
-        "co.windyapp.android",                 // Windy.app
-        "com.aws.android",                     // WeatherBug
-        "com.wunderground.android.weather",   // Weather Underground
-        "com.handmark.expressweather",        // 1Weather
-        "net.darksky.darksky",                 // Dark Sky (if still installed)
-        "com.luckycatlabs.sunrisesunset",     // (example: some weather apps embed this)
-        "de.mdiener.rain.usa",                 // Rain Alarm (example)
-        "com.noaa.weather",                    // Hypothetical NOAA-based app
-        "com.yahoo.mobile.client.android.weather", // Yahoo Weather
-        "org.breezyweather"                    // Breezy Weather
-    )
-
-    val installedKnownApps = knownWeatherPackages.filter {
-        try {
-            pm.getPackageInfo(it, 0)
-            AppLogger.d("WeatherAppLauncher", "Found known weather app: $it")
-            true
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
-        }
-    }
-
-    if (installedKnownApps.isNotEmpty()) {
-        val intent = pm.getLaunchIntentForPackage(installedKnownApps.first())
-        if (intent != null) {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launching known weather app: ${installedKnownApps.first()}"
-            )
-            this.startActivity(intent)
-            return
-        } else {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launch intent null for: ${installedKnownApps.first()}"
-            )
-        }
-    } else {
-        AppLogger.d("WeatherAppLauncher", "No known weather apps installed.")
-    }
-
-    // --- Option 2: Try generic weather intent (rarely works) ---
-    val genericIntent = Intent(Intent.ACTION_VIEW, "weather://".toUri())
-    val resolvedApps = pm.queryIntentActivities(genericIntent, PackageManager.MATCH_DEFAULT_ONLY)
-    if (resolvedApps.isNotEmpty()) {
-        val packageName = resolvedApps.first().activityInfo.packageName
-        val intent = pm.getLaunchIntentForPackage(packageName)
-        if (intent != null) {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launching app via generic weather intent: $packageName"
-            )
-            this.startActivity(intent)
-            return
-        } else {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launch intent null for generic weather app: $packageName"
-            )
-        }
-    } else {
-        AppLogger.d("WeatherAppLauncher", "No apps found via generic weather intent.")
-    }
-
-    // --- Option 3: Scan all installed apps for "weather" in name ---
-    val weatherAppsByName = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-        .filter { app ->
-            val name = pm.getApplicationLabel(app).toString().lowercase()
-            val containsWeather = name.contains("weather")
-            if (containsWeather) AppLogger.d(
-                "WeatherAppLauncher",
-                "Found app by name: ${app.packageName} ($name)"
-            )
-            containsWeather
-        }
-
-    if (weatherAppsByName.isNotEmpty()) {
-        val intent = pm.getLaunchIntentForPackage(weatherAppsByName.first().packageName)
-        if (intent != null) {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launching first app found by name: ${weatherAppsByName.first().packageName}"
-            )
-            this.startActivity(intent)
-            return
-        } else {
-            AppLogger.d(
-                "WeatherAppLauncher",
-                "Launch intent null for: ${weatherAppsByName.first().packageName}"
-            )
-        }
-    } else {
-        AppLogger.d("WeatherAppLauncher", "No apps found by name containing 'weather'.")
-    }
-
-    val prefs = Prefs(this)
-
-    // --- Fallback if no weather app is found ---
-    val coords = prefs.loadLocation()
-    if (coords != null) {
-        val (lat, lon) = coords
-
-        // Use prefs.tempUnit to determine unit parameter for weather.com
-        val unitParam = when (prefs.tempUnit) {
-            Constants.TempUnits.Celsius -> "c"  // Metric
-            Constants.TempUnits.Fahrenheit -> "f"  // Fahrenheit
-        }
-
-        // Construct the URL with lat/lon and unit
-        val url = "https://weather.com/weather/today/l/$lat,$lon?unit=$unitParam"
-
-        // Open in browser
-        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-        this.startActivity(intent)
-
-        AppLogger.d(
-            "WeatherAppLauncher",
-            "Opened weather.com for coordinates: $lat,$lon with unit: $unitParam"
-        )
-    } else {
-        AppLogger.d("WeatherAppLauncher", "No coordinates found in prefs.")
-    }
-
-}
-
-
 fun formatLongToCalendar(longTimestamp: Long): String {
     // Create a Calendar instance and set it's time to the given timestamp (in milliseconds)
     val calendar = Calendar.getInstance().apply {
@@ -656,27 +326,6 @@ fun formatLongToCalendar(longTimestamp: Long): String {
     ) // You can modify the format
     return dateFormat.format(calendar.time) // Return the formatted date string
 }
-
-fun formatMillisToHMS(millis: Long, showSeconds: Boolean): String {
-    val hours = millis / (1000 * 60 * 60)
-    val minutes = (millis % (1000 * 60 * 60)) / (1000 * 60)
-    val seconds = (millis % (1000 * 60)) / 1000
-
-    val formattedString = StringBuilder()
-    if (hours > 0) {
-        formattedString.append("$hours h ")
-    }
-    if (minutes > 0 || hours > 0) {
-        formattedString.append("$minutes m ")
-    }
-    // Only append seconds if showSeconds is true
-    if (showSeconds) {
-        formattedString.append("$seconds s")
-    }
-
-    return formattedString.toString().trim()
-}
-
 
 fun logActivitiesFromPackage(context: Context, packageName: String) {
     val packageManager = context.packageManager
@@ -846,7 +495,6 @@ fun getSystemIcons(
 
 fun updateAllWidgets(context: Context) {
     updateHomeWidget(context)
-    updateWordWidget(context)
     updateFabWidget(context)
 }
 
@@ -856,18 +504,6 @@ fun updateHomeWidget(context: Context) {
     val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
     val intent = Intent(context, HomeAppsWidgetProvider::class.java).apply {
-        action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
-    }
-    context.sendBroadcast(intent)
-}
-
-fun updateWordWidget(context: Context) {
-    val appWidgetManager = AppWidgetManager.getInstance(context)
-    val componentName = ComponentName(context, WordOfTheDayWidget::class.java)
-    val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-
-    val intent = Intent(context, WordOfTheDayWidget::class.java).apply {
         action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
     }
@@ -889,7 +525,6 @@ fun updateFabWidget(context: Context) {
 
     context.sendBroadcast(intent)
 }
-
 
 private fun getAppListIcons(context: Context, prefs: Prefs, nonNullDrawable: Drawable): Drawable? {
     return when (prefs.iconPackAppList) {
@@ -1010,23 +645,3 @@ fun setTopPadding(view: View, isSettings: Boolean = false) {
     ViewCompat.requestApplyInsets(view)
 }
 
-class CenteredImageSpan(drawable: Drawable) : ImageSpan(drawable) {
-    override fun draw(
-        canvas: Canvas,
-        text: CharSequence,
-        start: Int,
-        end: Int,
-        x: Float,
-        top: Int,
-        y: Int,
-        bottom: Int,
-        paint: Paint
-    ) {
-        val drawable = drawable
-        canvas.withSave {
-            val transY = top + ((bottom - top) - drawable.bounds.height()) / 2
-            translate(x, transY.toFloat())
-            drawable.draw(this)
-        }
-    }
-}

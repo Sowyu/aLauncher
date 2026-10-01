@@ -32,20 +32,8 @@ object Constants {
     const val MIN_CLOCK_DATE_SIZE = 10
     const val MAX_CLOCK_DATE_SIZE = 120
 
-    const val MIN_ALARM_SIZE = 10
-    const val MAX_ALARM_SIZE = 120
-
-    const val MIN_DAILY_WORD_SIZE = 10
-    const val MAX_DAILY_WORD_SIZE = 120
-
-    const val MIN_BATTERY_SIZE = 10
-    const val MAX_BATTERY_SIZE = 75
-
     const val MIN_TEXT_PADDING = 0
     const val MAX_TEXT_PADDING = 50
-
-    const val MIN_RECENT_COUNTER = 1
-    const val MAX_RECENT_COUNTER = 35
 
     const val MIN_FILTER_STRENGTH = 0
     const val MAX_FILTER_STRENGTH = 100
@@ -68,9 +56,6 @@ object Constants {
     // Update MAX_HOME_PAGES dynamically based on MAX_HOME_APPS
     var MAX_HOME_APPS = 20
     var MAX_HOME_PAGES = 10
-
-    const val ACCESS_FINE_LOCATION = 666
-    const val READ_CONTACTS = 777
 
     fun updateMaxHomePages(context: Context) {
         val prefs = Prefs(context)
@@ -121,7 +106,6 @@ object Constants {
         None,
         LaunchApp,
         HiddenApps,
-        PrivateApps,
         SetHomeApp,
         SetShortSwipeUp,
         SetShortSwipeDown,
@@ -132,7 +116,6 @@ object Constants {
         SetLongSwipeLeft,
         SetLongSwipeRight,
         SetClickClock,
-        SetAppUsage,
         SetFloating,
         SetClickDate,
         SetDoubleTap,
@@ -320,13 +303,9 @@ object Constants {
 
     enum class Action : EnumOption {
         OpenApp,
-        TogglePrivateSpace,
         LockScreen,
         ShowNotification,
         ShowAppList,
-        ShowWidgetPage,
-        ShowNotesManager,
-        ShowDigitalWellbeing,
         OpenQuickSettings,
         ShowRecents,
         OpenPowerDialog,
@@ -340,12 +319,8 @@ object Constants {
             return when (this) {
                 OpenApp -> getLocalizedString(R.string.open_app)
                 LockScreen -> getLocalizedString(R.string.lock_screen)
-                TogglePrivateSpace -> getLocalizedString(R.string.private_space, "Toggle")
                 ShowNotification -> getLocalizedString(R.string.show_notifications)
                 ShowAppList -> getLocalizedString(R.string.show_app_list)
-                ShowWidgetPage -> getLocalizedString(R.string.show_widget_page)
-                ShowNotesManager -> getLocalizedString(R.string.show_notes_manager)
-                ShowDigitalWellbeing -> getLocalizedString(R.string.show_digital_wellbeing)
                 OpenQuickSettings -> getLocalizedString(R.string.open_quick_settings)
                 ShowRecents -> getLocalizedString(R.string.show_recents)
                 OpenPowerDialog -> getLocalizedString(R.string.open_power_dialog)
@@ -362,12 +337,8 @@ object Constants {
             return when (this) {
                 OpenApp -> getLocalizedString(R.string.open_app)
                 LockScreen -> getLocalizedString(R.string.lock_screen)
-                TogglePrivateSpace -> getLocalizedString(R.string.private_space)
                 ShowNotification -> getLocalizedString(R.string.show_notifications)
                 ShowAppList -> getLocalizedString(R.string.show_app_list)
-                ShowWidgetPage -> getLocalizedString(R.string.show_widget_page)
-                ShowNotesManager -> getLocalizedString(R.string.show_notes_manager)
-                ShowDigitalWellbeing -> getLocalizedString(R.string.show_digital_wellbeing)
                 OpenQuickSettings -> getLocalizedString(R.string.open_quick_settings)
                 ShowRecents -> getLocalizedString(R.string.show_recents)
                 OpenPowerDialog -> getLocalizedString(R.string.open_power_dialog)
@@ -464,20 +435,6 @@ object Constants {
                 System -> getLocalizedString(R.string.system_default)
                 Dark -> getLocalizedString(R.string.dark)
                 Light -> getLocalizedString(R.string.light)
-            }
-        }
-    }
-
-    enum class TempUnits : EnumOption {
-        Celsius,
-        Fahrenheit;
-
-        // Keep this for Composable usage
-        @Composable
-        override fun string(): String {
-            return when (this) {
-                Celsius -> getLocalizedString(R.string.celsius)
-                Fahrenheit -> getLocalizedString(R.string.fahrenheit)
             }
         }
     }

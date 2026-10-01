@@ -36,10 +36,7 @@ import com.github.codeworkscreativehub.mlauncher.R
 import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.helper.getDeviceInfo
-import com.github.codeworkscreativehub.mlauncher.helper.hasContactsPermission
-import com.github.codeworkscreativehub.mlauncher.helper.themeDownloadButton
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
-import com.github.codeworkscreativehub.mlauncher.helper.wordofthedayDownloadButton
 import com.github.codeworkscreativehub.mlauncher.services.HapticFeedbackService
 import com.github.creativecodecat.components.views.FontBottomSheetDialogLocked
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -162,11 +159,6 @@ class DialogManager(val context: Context, val activity: Activity) {
             }
         }
 
-        // Add Download Option
-        layout.addView(createItem(getLocalizedString(R.string.advanced_settings_theme_download)) {
-            themeDownloadButton(context)
-        })
-
         // Add Export and Import options
         layout.addView(createItem(getLocalizedString(R.string.advanced_settings_theme_export)) {
             (activity as MainActivity).createThemeBackup()
@@ -224,83 +216,6 @@ class DialogManager(val context: Context, val activity: Activity) {
         }
     }
 
-    var saveDownloadWOTDBottomSheet: FontBottomSheetDialogLocked? = null
-
-    fun showSaveDownloadWOTDBottomSheet() {
-        // Dismiss any existing bottom sheet
-        saveDownloadWOTDBottomSheet?.dismiss()
-
-        HapticFeedbackService.trigger(
-            context,
-            HapticFeedbackService.EffectType.CLICK
-        )
-
-        // Create vertical layout
-        val layout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 24)
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-
-        // Utility function to create clickable items
-        fun createItem(text: String, onClick: () -> Unit): TextView {
-            return TextView(context).apply {
-                this.text = text
-                textSize = 16f
-                setPadding(0, 32, 0, 32)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    onClick()
-                    HapticFeedbackService.trigger(
-                        context,
-                        HapticFeedbackService.EffectType.SAVE
-                    )
-                    saveDownloadWOTDBottomSheet?.dismiss()
-                }
-            }
-        }
-
-        // Add Download Option
-        layout.addView(createItem(getLocalizedString(R.string.advanced_settings_wotd_download)) {
-            wordofthedayDownloadButton(context)
-        })
-
-        // Add Import options
-        layout.addView(createItem(getLocalizedString(R.string.advanced_settings_wotd_import)) {
-            (activity as MainActivity).restoreWordsBackup()
-        })
-
-        // Add Clear Option
-        layout.addView(createItem(getLocalizedString(R.string.advanced_settings_wotd_clear)) {
-            confirmClearWOTD()
-        })
-
-        // Create and show the LockedBottomSheetDialog
-        saveDownloadWOTDBottomSheet = FontBottomSheetDialogLocked(context).apply {
-            setContentView(layout)
-        }
-        saveDownloadWOTDBottomSheet?.show()
-    }
-
-    private fun confirmClearWOTD() {
-        MaterialAlertDialogBuilder(context)
-            .setTitle(getLocalizedString(R.string.advanced_settings_wotd_clear_title))
-            .setMessage(getLocalizedString(R.string.advanced_settings_wotd_clear_description))
-            .setPositiveButton(getLocalizedString(R.string.advanced_settings_clear_yes)) { _, _ ->
-                clearWOTD()
-            }
-            .setNegativeButton(getLocalizedString(R.string.advanced_settings_clear_no), null)
-            .show()
-    }
-
-    fun clearWOTD() {
-        val prefs = Prefs(context)
-        prefs.remove("WORD_LIST")
-        if (context is Activity) {
-            context.recreate()
-        }
-    }
 
     var sliderBottomSheet: FontBottomSheetDialogLocked? = null
 
@@ -442,7 +357,6 @@ class DialogManager(val context: Context, val activity: Activity) {
                 }
             }
         }
-
 
         // Horizontal layout for buttons + slider
         val sliderLayout = LinearLayout(context).apply {
@@ -735,15 +649,6 @@ class DialogManager(val context: Context, val activity: Activity) {
                         context,
                         HapticFeedbackService.EffectType.SELECT
                     )
-                    if (label == context.getString(R.string.applist_button_contacts) && isChecked) {
-                        if (!hasContactsPermission(context)) {
-                            context.requestRuntimePermission(
-                                arrayOf(Manifest.permission.READ_CONTACTS),
-                                Constants.READ_CONTACTS,
-                                "Contacts"
-                            )
-                        }
-                    }
                 }
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -755,13 +660,11 @@ class DialogManager(val context: Context, val activity: Activity) {
             layout.addView(checkBox)
         }
 
-
         flagSettingsBottomSheet = FontBottomSheetDialogLocked(context).apply {
             setContentView(layout)
         }
         flagSettingsBottomSheet?.show()
     }
-
 
     var colorPickerBottomSheet: FontBottomSheetDialogLocked? = null
 

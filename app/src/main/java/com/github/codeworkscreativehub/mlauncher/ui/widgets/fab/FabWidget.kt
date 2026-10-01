@@ -9,7 +9,6 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import com.github.codeworkscreativehub.common.AppLogger
-import com.github.codeworkscreativehub.common.ColorManager
 import com.github.codeworkscreativehub.common.openCameraApp
 import com.github.codeworkscreativehub.common.openDeviceSettings
 import com.github.codeworkscreativehub.common.openDialerApp
@@ -41,9 +40,6 @@ class FabWidget : AppWidgetProvider() {
             R.id.fabAction
         )
 
-        // Generate colors
-        val colors = ColorManager.getRandomHueColors(prefs.shortcutIconsColor, fabIds.size)
-
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_fab)
 
@@ -60,8 +56,7 @@ class FabWidget : AppWidgetProvider() {
                     R.id.fabPhotos,
                     R.id.fabBrowser,
                     R.id.fabSettings -> {
-                        val color = colors.getOrNull(index) ?: prefs.shortcutIconsColor
-                        views.setInt(viewId, "setColorFilter", if (prefs.iconRainbowColors) color else prefs.shortcutIconsColor)
+                        views.setInt(viewId, "setColorFilter", prefs.shortcutIconsColor)
                     }
 
                     R.id.fabAction -> {

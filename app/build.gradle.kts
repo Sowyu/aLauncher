@@ -158,14 +158,6 @@ extensions.configure<ApplicationExtension>("android") {
 
 
 // =========================
-//   KSP
-// =========================
-
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
-// =========================
 //   Dependencies
 // =========================
 
@@ -206,10 +198,6 @@ dependencies {
     implementation(libs.moshi)
     implementation(libs.moshi.ktx)
     ksp(libs.moshi.codegen)
-
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
 
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.espresso.contrib)

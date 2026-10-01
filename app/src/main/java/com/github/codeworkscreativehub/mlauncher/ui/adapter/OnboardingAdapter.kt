@@ -8,15 +8,13 @@ import com.github.codeworkscreativehub.mlauncher.ui.onboarding.OnboardingPageFra
 class OnboardingAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
 
     // Return the number of pages
-    override fun getItemCount(): Int = 4  // Total number of pages in the onboarding flow
+    // Single page: welcome + optional "set as default launcher". No permission demands.
+    override fun getItemCount(): Int = 1
 
     // Return the corresponding fragment for each page
     override fun createFragment(position: Int): Fragment {
         return when (position) {
             0 -> OnboardingPageFragment.Companion.newInstance(R.layout.fragment_onboarding_page_one)
-            1 -> OnboardingPageFragment.Companion.newInstance(R.layout.fragment_onboarding_page_two)
-            2 -> OnboardingPageFragment.Companion.newInstance(R.layout.fragment_onboarding_page_three)
-            3 -> OnboardingPageFragment.Companion.newInstance(R.layout.fragment_onboarding_page_four)
             else -> throw IllegalArgumentException("Invalid page position: $position")
         }
     }

@@ -101,33 +101,12 @@ class Migration(val context: Context) {
         )
     }
 
-    fun migrateMessages(prefs: Prefs) {
-        try {
-            // Try to parse as the new format
-            val messages = prefs.loadMessages()
-            if (messages.isNotEmpty()) {
-                // Already in correct format — no need to migrate
-                return
-            }
-        } catch (_: Exception) {
-            // If loading as new format fails, try migrating from the old format
-            try {
-                val wrongMessages = prefs.loadMessagesWrong()
-                val correctedMessages = wrongMessages.map { wrong ->
-                    Message(
-                        text = wrong.a,
-                        timestamp = wrong.b,
-                        category = wrong.c,
-                        priority = wrong.d
-                    )
-                }
-                prefs.saveMessages(correctedMessages)
-                AppLogger.d("Migration", "Migration passed")
-            } catch (e: Exception) {
-                // Log or handle if even legacy format is broken
-                AppLogger.e("Migration", "Migration failed", e)
-            }
-        }
+    /** Drop stored data of features this build no longer has (notes, weather, usage stats...). */
+    fun removeDeletedFeatureData(prefs: Prefs) {
+        val stale = prefs.prefsNormal.all.keys.filter { key -> REMOVED_KEY_PREFIXES.any { key.startsWith(it) } }
+        if (stale.isEmpty()) return
+        prefs.prefsNormal.edit { stale.forEach { remove(it) } }
+        AppLogger.d("PrefsMigration", "Removed ${stale.size} keys of deleted features")
     }
 
     fun deleteOldCacheFiles(appContext: Context) {
@@ -145,5 +124,10 @@ class Migration(val context: Context) {
             oldContactsCacheFile.delete()
             AppLogger.d("CacheCleanup", "contacts_cache.json deleted")
         }
+
+        // Contacts search was removed; its cache lives in cacheDir
+        File(appContext.cacheDir, "contacts_cache.json").delete()
+        // The widgets page was removed; drop its database
+        appContext.deleteDatabase("widget_database")
     }
 }

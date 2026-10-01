@@ -13,14 +13,11 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.Gravity
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.getUserHandleFromString
 import com.github.codeworkscreativehub.mlauncher.helper.isSystemInDarkMode
-import com.github.codeworkscreativehub.mlauncher.helper.receivers.LocationResult
-import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import java.lang.reflect.ParameterizedType
 
 /** Keys of features removed from this build. Restoring an old backup skips them. */
-private val REMOVED_KEY_PREFIXES = listOf(
+internal val REMOVED_KEY_PREFIXES = listOf(
     "NOTES_", "BUBBLE_", "INPUT_MESSAGE", "WEATHER_", "WORD_LIST", "SHOW_WEATHER", "GPS_LOCATION",
     "TEMP_UNIT", "SHOW_BATTERY", "BATTERY_", "SHOW_ALARM", "ALARM_", "SHOW_DAILY_WORD", "DAILY_WORD_",
     "RECENT_", "APP_USAGE_STATS", "CLICK_APP_USAGE_ACTION", "SHOW_PRIVATE_SPACES", "HIDDEN_CONTACTS",
@@ -30,12 +27,6 @@ private val REMOVED_KEY_PREFIXES = listOf(
 class Prefs(val context: Context) {
     // Build Moshi instance once (ideally a singleton)
     val moshi: Moshi = Moshi.Builder().build()
-
-    // Define the type for List<Message>
-    val messageListType: ParameterizedType = Types.newParameterizedType(List::class.java, Message::class.java)
-    val messageAdapter: JsonAdapter<List<Message>> = moshi.adapter(messageListType)
-    val messageWrongListType: ParameterizedType = Types.newParameterizedType(List::class.java, MessageWrong::class.java)
-    val messageWrongAdapter: JsonAdapter<List<MessageWrong>> = moshi.adapter(messageWrongListType)
 
     internal val prefsNormal: SharedPreferences = context.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
     internal val prefsOnboarding: SharedPreferences = context.getSharedPreferences(PREFS_ONBOARDING_FILENAME, Context.MODE_PRIVATE)
@@ -219,18 +210,6 @@ class Prefs(val context: Context) {
         get() = getSetting(HOME_PAGES_PAGER, false)
         set(value) = prefsNormal.edit { putBoolean(HOME_PAGES_PAGER, value) }
 
-    var recentAppsDisplayed: Boolean
-        get() = getSetting(RECENT_APPS_DISPLAYED, false)
-        set(value) = prefsNormal.edit { putBoolean(RECENT_APPS_DISPLAYED, value) }
-
-    var iconRainbowColors: Boolean
-        get() = getSetting(ICON_RAINBOW_COLORS, false)
-        set(value) = prefsNormal.edit { putBoolean(ICON_RAINBOW_COLORS, value) }
-
-    var recentCounter: Int
-        get() = getSetting(RECENT_COUNTER, 10)
-        set(value) = prefsNormal.edit { putInt(RECENT_COUNTER, value) }
-
     var enableFilterStrength: Boolean
         get() = getSetting(ENABLE_FILTER_STRENGTH, true)
         set(value) = prefsNormal.edit { putBoolean(ENABLE_FILTER_STRENGTH, value) }
@@ -279,69 +258,13 @@ class Prefs(val context: Context) {
         get() = getSetting(CLOCK_COLOR, getColor(context, getColorInt("txt")))
         set(value) = prefsNormal.edit { putInt(CLOCK_COLOR, value) }
 
-    var batteryColor: Int
-        get() = getSetting(BATTERY_COLOR, getColor(context, getColorInt("txt")))
-        set(value) = prefsNormal.edit { putInt(BATTERY_COLOR, value) }
-
-    var dailyWordColor: Int
-        get() = getSetting(DAILY_WORD_COLOR, getColor(context, getColorInt("txt")))
-        set(value) = prefsNormal.edit { putInt(DAILY_WORD_COLOR, value) }
-
     var shortcutIconsColor: Int
         get() = getSetting(SHORTCUT_ICONS_COLOR, getColor(context, getColorInt("txt")))
         set(value) = prefsNormal.edit { putInt(SHORTCUT_ICONS_COLOR, value) }
 
-    var alarmClockColor: Int
-        get() = getSetting(ALARM_CLOCK_COLOR, getColor(context, getColorInt("txt")))
-        set(value) = prefsNormal.edit { putInt(ALARM_CLOCK_COLOR, value) }
-
-    var notesBackgroundColor: Int
-        get() = getSetting(NOTES_BACKGROUND_COLOR, getColor(context, getColorInt("bg_notes")))
-        set(value) = prefsNormal.edit { putInt(NOTES_BACKGROUND_COLOR, value) }
-
-    var bubbleBackgroundColor: Int
-        get() = getSetting(BUBBLE_BACKGROUND_COLOR, getColor(context, getColorInt("bg_bubble")))
-        set(value) = prefsNormal.edit { putInt(BUBBLE_BACKGROUND_COLOR, value) }
-
-    var bubbleMessageTextColor: Int
-        get() = getSetting(
-            BUBBLE_MESSAGE_COLOR,
-            getColor(context, getColorInt("bg_bubble_message"))
-        )
-        set(value) = prefsNormal.edit { putInt(BUBBLE_MESSAGE_COLOR, value) }
-
-    var bubbleTimeDateColor: Int
-        get() = getSetting(
-            BUBBLE_TIMEDATE_COLOR,
-            getColor(context, getColorInt("bg_bubble_time_date"))
-        )
-        set(value) = prefsNormal.edit { putInt(BUBBLE_TIMEDATE_COLOR, value) }
-
-    var bubbleCategoryColor: Int
-        get() = getSetting(
-            BUBBLE_CATEGORY_COLOR,
-            getColor(context, getColorInt("bg_bubble_category"))
-        )
-        set(value) = prefsNormal.edit { putInt(BUBBLE_CATEGORY_COLOR, value) }
-
-    var inputMessageColor: Int
-        get() = getSetting(INPUT_MESSAGE_COLOR, getColor(context, getColorInt("input_text")))
-        set(value) = prefsNormal.edit { putInt(INPUT_MESSAGE_COLOR, value) }
-
-    var inputMessageHintColor: Int
-        get() = getSetting(
-            INPUT_MESSAGEHINT_COLOR,
-            getColor(context, getColorInt("input_text_hint"))
-        )
-        set(value) = prefsNormal.edit { putInt(INPUT_MESSAGEHINT_COLOR, value) }
-
     var opacityNum: Int
         get() = getSetting(APP_OPACITY, 15)
         set(value) = prefsNormal.edit { putInt(APP_OPACITY, value) }
-
-    var appUsageStats: Boolean
-        get() = getSetting(APP_USAGE_STATS, false)
-        set(value) = prefsNormal.edit { putBoolean(APP_USAGE_STATS, value) }
 
     var homeAlignment: Gravity
         get() {
@@ -357,10 +280,6 @@ class Prefs(val context: Context) {
         get() = getSetting(HOME_CLICK_AREA, false)
         set(value) = prefsNormal.edit { putBoolean(HOME_CLICK_AREA, value) }
 
-    var showPrivateSpaces: Boolean
-        get() = getSetting(SHOW_PRIVATE_SPACES, true)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_PRIVATE_SPACES, value) }
-
     var clockAlignment: Gravity
         get() {
             return getEnumSetting(CLOCK_ALIGNMENT, Gravity.Left)
@@ -372,18 +291,6 @@ class Prefs(val context: Context) {
             return getEnumSetting(DATE_ALIGNMENT, Gravity.Left)
         }
         set(value) = prefsNormal.edit { putString(DATE_ALIGNMENT, value.toString()) }
-
-    var alarmAlignment: Gravity
-        get() {
-            return getEnumSetting(ALARM_ALIGNMENT, Gravity.Left)
-        }
-        set(value) = prefsNormal.edit { putString(ALARM_ALIGNMENT, value.toString()) }
-
-    var dailyWordAlignment: Gravity
-        get() {
-            return getEnumSetting(DAILY_WORD_ALIGNMENT, Gravity.Left)
-        }
-        set(value) = prefsNormal.edit { putString(DAILY_WORD_ALIGNMENT, value.toString()) }
 
     var drawerAlignment: Gravity
         get() {
@@ -419,33 +326,9 @@ class Prefs(val context: Context) {
         get() = getSetting(SHOW_CLOCK_FORMAT, true)
         set(value) = prefsNormal.edit { putBoolean(SHOW_CLOCK_FORMAT, value) }
 
-    var showAlarm: Boolean
-        get() = getSetting(SHOW_ALARM, false)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_ALARM, value) }
-
-    var showDailyWord: Boolean
-        get() = getSetting(SHOW_DAILY_WORD, false)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_DAILY_WORD, value) }
-
     var showFloating: Boolean
         get() = getSetting(SHOW_FLOATING, true)
         set(value) = prefsNormal.edit { putBoolean(SHOW_FLOATING, value) }
-
-    var showBattery: Boolean
-        get() = getSetting(SHOW_BATTERY, true)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_BATTERY, value) }
-
-    var showWeather: Boolean
-        get() = getSetting(SHOW_WEATHER, true)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_WEATHER, value) }
-
-    var gpsLocation: Boolean
-        get() = getSetting(GPS_LOCATION, true)
-        set(value) = prefsNormal.edit { putBoolean(GPS_LOCATION, value) }
-
-    var showBatteryIcon: Boolean
-        get() = getSetting(SHOW_BATTERY_ICON, true)
-        set(value) = prefsNormal.edit { putBoolean(SHOW_BATTERY_ICON, value) }
 
     var lockOrientation: Boolean
         get() = getSetting(LOCK_ORIENTATION, false)
@@ -483,10 +366,6 @@ class Prefs(val context: Context) {
         get() = prefsNormal.getString(CUSTOM_ICON_PACK_APP_LIST, emptyString()).toString()
         set(value) = prefsNormal.edit { putString(CUSTOM_ICON_PACK_APP_LIST, value) }
 
-    var wordList: String
-        get() = prefsNormal.getString(WORD_LIST, emptyString()).toString()
-        set(value) = prefsNormal.edit { putString(WORD_LIST, value) }
-
     var homeLocked: Boolean
         get() = getSetting(HOME_LOCKED, false)
         set(value) = prefsNormal.edit { putBoolean(HOME_LOCKED, value) }
@@ -503,14 +382,6 @@ class Prefs(val context: Context) {
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
         set(value) = prefsNormal.edit { putBoolean(HIDE_SEARCH_VIEW, value) }
-
-    var autoExpandNotes: Boolean
-        get() = getSetting(AUTO_EXPAND_NOTES, false)
-        set(value) = prefsNormal.edit { putBoolean(AUTO_EXPAND_NOTES, value) }
-
-    var clickToEditDelete: Boolean
-        get() = getSetting(CLICK_EDIT_DELETE, true)
-        set(value) = prefsNormal.edit { putBoolean(CLICK_EDIT_DELETE, value) }
 
     var shortSwipeUpAction: Constants.Action
         get() {
@@ -566,15 +437,9 @@ class Prefs(val context: Context) {
         }
         set(value) = prefsNormal.edit { putString(CLICK_CLOCK_ACTION, value.name) }
 
-    var clickAppUsageAction: Constants.Action
-        get() {
-            return getEnumSetting(CLICK_APP_USAGE_ACTION, Constants.Action.ShowDigitalWellbeing)
-        }
-        set(value) = prefsNormal.edit { putString(CLICK_APP_USAGE_ACTION, value.name) }
-
     var clickFloatingAction: Constants.Action
         get() {
-            return getEnumSetting(CLICK_FLOATING_ACTION, Constants.Action.ShowNotesManager)
+            return getEnumSetting(CLICK_FLOATING_ACTION, Constants.Action.ShowAppList)
         }
         set(value) = prefsNormal.edit { putString(CLICK_FLOATING_ACTION, value.name) }
 
@@ -595,12 +460,6 @@ class Prefs(val context: Context) {
             return getEnumSetting(APP_THEME, Constants.Theme.System)
         }
         set(value) = prefsNormal.edit { putString(APP_THEME, value.name) }
-
-    var tempUnit: Constants.TempUnits
-        get() {
-            return getEnumSetting(TEMP_UNIT, Constants.TempUnits.Celsius)
-        }
-        set(value) = prefsNormal.edit { putString(TEMP_UNIT, value.name) }
 
     var appLanguage: Constants.Language
         get() {
@@ -631,15 +490,6 @@ class Prefs(val context: Context) {
     var pinnedApps: Set<String>
         get() = prefsNormal.getStringSet(PINNED_APPS, emptySet()) as Set<String>
         set(value) = prefsNormal.edit { putStringSet(PINNED_APPS, value) }
-
-
-    var hiddenContacts: MutableSet<String>
-        get() = prefsNormal.getStringSet(HIDDEN_CONTACTS, mutableSetOf()) as MutableSet<String>
-        set(value) = prefsNormal.edit { putStringSet(HIDDEN_CONTACTS, value) }
-
-    var pinnedContacts: Set<String>
-        get() = prefsNormal.getStringSet(PINNED_CONTACTS, emptySet()) as Set<String>
-        set(value) = prefsNormal.edit { putStringSet(PINNED_CONTACTS, value) }
 
     var enableExpertOptions: Boolean
         get() = getSetting(EXPERT_OPTIONS, false)
@@ -686,9 +536,6 @@ class Prefs(val context: Context) {
     var appClickClock: AppListItem
         get() = loadApp(CLICK_CLOCK)
         set(appModel) = storeApp(CLICK_CLOCK, appModel)
-    var appClickUsage: AppListItem
-        get() = loadApp(CLICK_USAGE)
-        set(appModel) = storeApp(CLICK_USAGE, appModel)
     var appFloating: AppListItem
         get() = loadApp(CLICK_FLOATING)
         set(appModel) = storeApp(CLICK_FLOATING, appModel)
@@ -762,31 +609,6 @@ class Prefs(val context: Context) {
         }
         set(value) = prefsNormal.edit { putInt(CLOCK_SIZE_TEXT, value) }
 
-    var alarmSize: Int
-        get() {
-            return getSetting(ALARM_SIZE_TEXT, 20)
-        }
-        set(value) = prefsNormal.edit { putInt(ALARM_SIZE_TEXT, value) }
-
-    var dailyWordSize: Int
-        get() {
-            return getSetting(DAILY_WORD_SIZE_TEXT, 20)
-        }
-        set(value) = prefsNormal.edit { putInt(DAILY_WORD_SIZE_TEXT, value) }
-
-
-    var batterySize: Int
-        get() {
-            return getSetting(BATTERY_SIZE_TEXT, 14)
-        }
-        set(value) = prefsNormal.edit { putInt(BATTERY_SIZE_TEXT, value) }
-
-    var settingsSize: Int
-        get() {
-            return getSetting(TEXT_SIZE_SETTINGS, 12)
-        }
-        set(value) = prefsNormal.edit { putInt(TEXT_SIZE_SETTINGS, value) }
-
     var textPaddingSize: Int
         get() {
             return getSetting(TEXT_PADDING_SIZE, 10)
@@ -810,24 +632,10 @@ class Prefs(val context: Context) {
 
         val lightModeColors = mapOf(
             "bg" to R.color.white,
-            "bg_notes" to R.color.light_gray_light,
-            "bg_bubble" to R.color.light_gray_medium,
-            "bg_bubble_message" to R.color.black,
-            "bg_bubble_time_date" to R.color.dark_gray_very_dark,
-            "bg_bubble_category" to R.color.dark_gray_dark,
-            "input_text" to R.color.dark_gray_very_dark,
-            "input_text_hint" to R.color.dark_gray_dark,
         )
 
         val darkModeColors = mapOf(
             "bg" to R.color.black,
-            "bg_notes" to R.color.dark_gray_very_dark,
-            "bg_bubble" to R.color.dark_gray_dark,
-            "bg_bubble_message" to R.color.white,
-            "bg_bubble_time_date" to R.color.light_gray_very_light,
-            "bg_bubble_category" to R.color.light_gray_light,
-            "input_text" to R.color.light_gray_very_light,
-            "input_text_hint" to R.color.light_gray_light,
         )
 
         val defaultLight = R.color.black
@@ -882,7 +690,6 @@ class Prefs(val context: Context) {
         } ?: ""
     }
 
-
     fun setAppTag(appPackage: String, appTag: String, userHandle: UserHandle? = null) {
         prefsNormal.edit {
             // Remove base key
@@ -898,70 +705,12 @@ class Prefs(val context: Context) {
         }
     }
 
-    /** 🔹 Save selected location into SharedPreferences */
-    fun saveLocation(results: LocationResult) {
-        results.let {
-            prefsNormal.edit {
-                putString(WEATHER_LOCATION, it.region)
-                putFloat(WEATHER_LATITUDE, it.latitude.toFloat())
-                putFloat(WEATHER_LONGITUDE, it.longitude.toFloat())
-            }
-        }
-    }
-
-    /** 🔹 Load saved location */
-    fun loadLocation(): Pair<Double, Double>? {
-        val lat = prefsNormal.getFloat(WEATHER_LATITUDE, Float.NaN)
-        val lon = prefsNormal.getFloat(WEATHER_LONGITUDE, Float.NaN)
-
-        return if (!lat.isNaN() && !lon.isNaN()) {
-            Pair(lat.toDouble(), lon.toDouble())
-        } else {
-            null
-        }
-    }
-
-    fun loadLocationName(): String {
-        return prefsNormal.getString(WEATHER_LOCATION, "Select Location").toString()
-    }
-
     fun remove(prefName: String) {
         prefsNormal.edit { remove(prefName) }
     }
 
     fun clear() {
         prefsNormal.edit { clear() }
-    }
-
-    fun saveMessages(messages: List<Message>) {
-        prefsNormal.edit {
-            val json = messageAdapter.toJson(messages)
-            putString(NOTES_MESSAGES, json)
-        }
-    }
-
-    fun loadMessagesWrong(): List<MessageWrong> {
-        val json = prefsNormal.getString(NOTES_MESSAGES, "[]") ?: return emptyList()
-        return messageWrongAdapter.fromJson(json) ?: emptyList()
-    }
-
-    fun loadMessages(): List<Message> {
-        val json = prefsNormal.getString(NOTES_MESSAGES, "[]") ?: return emptyList()
-        return messageAdapter.fromJson(json) ?: emptyList()
-    }
-
-
-    fun saveSettings(category: String, priority: String) {
-        prefsNormal.edit {
-            putString(NOTES_CATEGORY, category)
-            putString(NOTES_PRIORITY, priority)
-        }
-    }
-
-    fun loadSettings(): Pair<String, String> {
-        val category = prefsNormal.getString(NOTES_CATEGORY, "None") ?: "None"
-        val priority = prefsNormal.getString(NOTES_PRIORITY, "None") ?: "None"
-        return Pair(category, priority)
     }
 
     // Function to fetch enum value from SharedPreferences
@@ -997,7 +746,6 @@ class Prefs(val context: Context) {
 
         return result as T
     }
-
 
     fun isOnboardingCompleted(): Boolean {
         return prefsOnboarding.getBoolean(ONBOARDING_COMPLETED, false)

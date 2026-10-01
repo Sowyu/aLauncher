@@ -1,6 +1,5 @@
 package com.github.codeworkscreativehub.mlauncher.ui.onboarding
 
-import android.Manifest
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
@@ -19,29 +18,17 @@ import android.view.ViewGroup
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewbinding.ViewBinding
-import androidx.viewpager2.widget.ViewPager2
 import com.github.codeworkscreativehub.common.getLocalizedString
-import com.github.codeworkscreativehub.common.openAccessibilitySettings
-import com.github.codeworkscreativehub.common.requestRuntimePermission
-import com.github.codeworkscreativehub.common.requestUsagePermission
 import com.github.codeworkscreativehub.common.showLongToast
 import com.github.codeworkscreativehub.mlauncher.MainActivity
 import com.github.codeworkscreativehub.mlauncher.MainViewModel
 import com.github.codeworkscreativehub.mlauncher.R
-import com.github.codeworkscreativehub.mlauncher.data.Constants
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
-import com.github.codeworkscreativehub.mlauncher.databinding.FragmentOnboardingPageFourBinding
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentOnboardingPageOneBinding
-import com.github.codeworkscreativehub.mlauncher.databinding.FragmentOnboardingPageThreeBinding
-import com.github.codeworkscreativehub.mlauncher.databinding.FragmentOnboardingPageTwoBinding
-import com.github.codeworkscreativehub.mlauncher.helper.hasLocationPermission
-import com.github.codeworkscreativehub.mlauncher.helper.hasUsageAccessPermission
 import com.github.codeworkscreativehub.mlauncher.helper.ismlauncherDefault
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class OnboardingPageFragment : Fragment() {
 
@@ -79,21 +66,7 @@ class OnboardingPageFragment : Fragment() {
         prefs = Prefs(requireContext())
         layoutResId = arguments?.getInt("layoutResId") ?: 0
 
-        _binding = when (layoutResId) {
-            R.layout.fragment_onboarding_page_one ->
-                FragmentOnboardingPageOneBinding.inflate(inflater, container, false)
-
-            R.layout.fragment_onboarding_page_two ->
-                FragmentOnboardingPageTwoBinding.inflate(inflater, container, false)
-
-            R.layout.fragment_onboarding_page_three ->
-                FragmentOnboardingPageThreeBinding.inflate(inflater, container, false)
-
-            R.layout.fragment_onboarding_page_four ->
-                FragmentOnboardingPageFourBinding.inflate(inflater, container, false)
-
-            else -> null
-        }
+        _binding = FragmentOnboardingPageOneBinding.inflate(inflater, container, false)
 
         return binding.root
     }
@@ -101,7 +74,6 @@ class OnboardingPageFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val viewPager = activity?.findViewById<ViewPager2>(R.id.viewPager)
         viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
         viewModel.ismlauncherDefault()
 
@@ -133,68 +105,17 @@ class OnboardingPageFragment : Fragment() {
                 binding.description.text = spannable
                 binding.description.movementMethod = LinkMovementMethod.getInstance()
 
-                handler.removeCallbacks(usagePermissionCheckRunnable)
                 handler.post(launcherDefaultCheckRunnable)
 
                 binding.permissionButton.text = getLocalizedString(R.string.advanced_settings_set_as_default_launcher)
                 binding.permissionButton.setOnClickListener { setDefaultHomeScreen() }
 
-                binding.nextButton.text = getLocalizedString(R.string.next)
-                binding.nextButton.setOnClickListener { viewPager?.currentItem = viewPager.currentItem + 1 }
+                // Setting the default launcher is offered, never required
+                binding.nextButton.text = getLocalizedString(R.string.start)
+                binding.nextButton.setOnClickListener { finishOnboarding() }
             }
 
-            is FragmentOnboardingPageTwoBinding -> {
-                handler.removeCallbacks(launcherDefaultCheckRunnable)
-                handler.removeCallbacks(locationPermissionCheckRunnable)
-                handler.post(usagePermissionCheckRunnable)
-
-                binding.permissionButton.setOnClickListener { requireContext().requestUsagePermission() }
-
-                binding.nextButton.text = getLocalizedString(R.string.next)
-                binding.nextButton.setOnClickListener { viewPager?.currentItem = viewPager.currentItem + 1 }
-            }
-
-            is FragmentOnboardingPageThreeBinding -> {
-                handler.removeCallbacks(launcherDefaultCheckRunnable)
-                handler.removeCallbacks(usagePermissionCheckRunnable)
-                handler.post(locationPermissionCheckRunnable)
-
-                binding.permissionButton.setOnClickListener {
-                    requireContext().requestRuntimePermission(
-                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                        Constants.ACCESS_FINE_LOCATION,
-                        "Location"
-                    )
-                }
-
-                binding.nextButton.text = getLocalizedString(R.string.next)
-                binding.nextButton.setOnClickListener { viewPager?.currentItem = viewPager.currentItem + 1 }
-            }
-
-            is FragmentOnboardingPageFourBinding -> {
-                handler.removeCallbacks(launcherDefaultCheckRunnable)
-                handler.removeCallbacks(usagePermissionCheckRunnable)
-                handler.removeCallbacks(locationPermissionCheckRunnable)
-
-                binding.permissionButton.setOnClickListener {
-                    MaterialAlertDialogBuilder(requireContext())
-                        .setTitle(getLocalizedString(R.string.accessibility_service_why_we_need))
-                        .setMessage(getLocalizedString(R.string.accessibility_service_more_info))
-                        .setPositiveButton(getLocalizedString(R.string.allow)) { dialog, _ ->
-                            dialog.dismiss()
-                            requireContext().openAccessibilitySettings()
-                        }
-                        .setNegativeButton(getLocalizedString(R.string.deny)) { dialog, _ ->
-                            dialog.dismiss()
-                            finishOnboarding()
-                        }
-                        .setCancelable(true)
-                        .show()
-                }
-
-                binding.startButton.text = getLocalizedString(R.string.start)
-                binding.startButton.setOnClickListener { finishOnboarding() }
-            }
+            else -> {}
         }
     }
 
@@ -207,49 +128,7 @@ class OnboardingPageFragment : Fragment() {
     private val launcherDefaultCheckRunnable = object : Runnable {
         override fun run() {
             (binding as? FragmentOnboardingPageOneBinding)?.apply {
-                if (ismlauncherDefault(requireContext())) {
-                    nextButton.isEnabled = true
-                    permissionButton.isEnabled = false
-                } else {
-                    permissionButton.isEnabled = true
-                    nextButton.isEnabled = false
-                }
-            }
-            handler.postDelayed(this, 1000)
-        }
-    }
-
-    private val usagePermissionCheckRunnable = object : Runnable {
-        override fun run() {
-            (binding as? FragmentOnboardingPageTwoBinding)?.apply {
-                if (hasUsageAccessPermission(requireContext())) {
-                    permissionText.text = getLocalizedString(R.string.permission_granted)
-                    permissionButton.isEnabled = false
-                    nextButton.isEnabled = true
-                    permissionReviewText.isVisible = false
-                } else {
-                    permissionText.text = getLocalizedString(R.string.grant_usage_permission)
-                    permissionButton.isEnabled = true
-                    nextButton.isEnabled = false
-                }
-            }
-            handler.postDelayed(this, 1000)
-        }
-    }
-
-    private val locationPermissionCheckRunnable = object : Runnable {
-        override fun run() {
-            (binding as? FragmentOnboardingPageThreeBinding)?.apply {
-                if (hasLocationPermission(requireContext())) {
-                    permissionText.text = getLocalizedString(R.string.permission_granted)
-                    permissionButton.isEnabled = false
-                    nextButton.isEnabled = true
-                    permissionReviewText.isVisible = false
-                } else {
-                    permissionText.text = getLocalizedString(R.string.grant_location_permission)
-                    permissionButton.isEnabled = true
-                    nextButton.isEnabled = true
-                }
+                permissionButton.isEnabled = !ismlauncherDefault(requireContext())
             }
             handler.postDelayed(this, 1000)
         }
@@ -258,8 +137,6 @@ class OnboardingPageFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         handler.removeCallbacks(launcherDefaultCheckRunnable)
-        handler.removeCallbacks(usagePermissionCheckRunnable)
-        handler.removeCallbacks(locationPermissionCheckRunnable)
         _binding = null
     }
 

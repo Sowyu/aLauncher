@@ -3,7 +3,6 @@ package com.github.codeworkscreativehub.fuzzywuzzy
 import android.content.Context
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.mlauncher.data.AppListItem
-import com.github.codeworkscreativehub.mlauncher.data.ContactListItem
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import java.text.Normalizer
@@ -23,18 +22,6 @@ object FuzzyFinder {
         val normalizedSearchChars = normalizeSearch(searchChars)
 
         val fuzzyScore = calculateFuzzyScore(normalizedAppLabel, normalizedSearchChars)
-        return (fuzzyScore * topScore).toInt()
-    }
-
-    /**
-     * Scores a ContactListItem based on its display name.
-     */
-    fun scoreContact(contact: ContactListItem, searchChars: String, topScore: Int): Int {
-        val contactLabel = contact.displayName
-        val normalizedContactLabel = normalizeTarget(contactLabel)
-        val normalizedSearchChars = normalizeSearch(searchChars)
-
-        val fuzzyScore = calculateFuzzyScore(normalizedContactLabel, normalizedSearchChars)
         return (fuzzyScore * topScore).toInt()
     }
 
