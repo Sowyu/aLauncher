@@ -6,6 +6,7 @@ import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.RadialGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.PorterDuff
@@ -23,6 +24,7 @@ import android.view.View
 import androidx.core.graphics.createBitmap
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -78,8 +80,7 @@ class HoloStickerView @JvmOverloads constructor(
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val sensor: Sensor? = sensorManager?.let {
-        it.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
-            ?: it.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+        it.getDefaultSensor(Sensor.TYPE_GRAVITY)
             ?: it.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     }
     private var active = false
@@ -137,31 +138,24 @@ class HoloStickerView @JvmOverloads constructor(
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        val pitch: Float
-        val roll: Float
-        if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-            val (x, y, z) = Triple(event.values[0], event.values[1], event.values[2])
-            pitch = Math.toDegrees(atan2(y.toDouble(), sqrt((x * x + z * z).toDouble()))).toFloat()
-            roll = Math.toDegrees(atan2(-x.toDouble(), z.toDouble())).toFloat()
-        } else {
-            SensorManager.getRotationMatrixFromVector(rotation, event.values)
-            SensorManager.getOrientation(rotation, orientation)
-            pitch = Math.toDegrees(orientation[1].toDouble()).toFloat()
-            roll = Math.toDegrees(orientation[2].toDouble()).toFloat()
-        }
-        // Follow the holding angle slowly, so the foil reacts to tilting rather than to posture
+        // Gravity in the device frame: x = left/right tilt, y = toward/away tilt. No gimbal flips when upright.
+        val g = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
+        if (g < 1f) return
+        val roll = Math.toDegrees(asin((event.values[0] / g).coerceIn(-1f, 1f).toDouble())).toFloat()
+        val pitch = Math.toDegrees(asin((event.values[1] / g).coerceIn(-1f, 1f).toDouble())).toFloat()
+        // Re-centre on the holding angle very slowly (~20s), so a held tilt stays tilted
         if (baseX.isNaN()) {
             baseX = roll
             baseY = pitch
         } else {
-            baseX += (roll - baseX) * 0.01f
-            baseY += (pitch - baseY) * 0.01f
+            baseX += (roll - baseX) * 0.001f
+            baseY += (pitch - baseY) * 0.001f
         }
         val tx = (roll - baseX).coerceIn(-TILT_RANGE, TILT_RANGE)
         val ty = (pitch - baseY).coerceIn(-TILT_RANGE, TILT_RANGE)
-        tiltX += (tx - tiltX) * 0.18f
-        tiltY += (ty - tiltY) * 0.18f
-        if (abs(tiltX - lastDrawX) > 0.1f || abs(tiltY - lastDrawY) > 0.1f) {
+        tiltX += (tx - tiltX) * 0.25f
+        tiltY += (ty - tiltY) * 0.25f
+        if (abs(tiltX - lastDrawX) > 0.05f || abs(tiltY - lastDrawY) > 0.05f) {
             lastDrawX = tiltX
             lastDrawY = tiltY
             postInvalidateOnAnimation()
@@ -285,14 +279,15 @@ class HoloStickerView @JvmOverloads constructor(
         val ty = tiltY / TILT_RANGE
         val motion = sqrt(tx * tx + ty * ty).coerceAtMost(1f)
         // ~50% at rest, ~85% fully tilted, at the default intensity of 0.8
-        val strength = ((0.5f + 0.35f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
+        val strength = ((0.22f + 0.5f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
 
         // Band direction ~60°; tilt slides the bands ~2 sticker widths over the full range
-        val angle = Math.toRadians(60.0)
+        // Band angle swings with the tilt direction; phase slides with tilt along both axes
+        val angle = Math.toRadians(60.0) + atan2(ty.toDouble(), tx.toDouble() + 1e-3) * 0.35 * motion
         val dx = cos(angle).toFloat()
         val dy = sin(angle).toFloat()
         val period = size / 2.6f
-        val shift = (tx * 0.8f + ty * 0.6f) * size * 2f
+        val shift = (tx * dx + ty * dy) * size * 2.2f + (tx - ty) * size * 0.6f
 
         // (1) Rainbow foil in ridged diagonal streaks
         rainbowPaint.shader = LinearGradient(0f, 0f, dx * period, dy * period, rainbow, null, Shader.TileMode.REPEAT)
@@ -311,8 +306,8 @@ class HoloStickerView @JvmOverloads constructor(
             canvas.drawRect(bounds, rainbowPaint)
             canvas.drawRect(bounds, ridgePaint)
         }
-        foilLayer(canvas, art, left, top, screenPaint, 0.85f * strength, foil)
-        foilLayer(canvas, art, left, top, overlayPaint, 0.55f * strength, foil)
+        foilLayer(canvas, art, left, top, screenPaint, 0.6f * strength, foil)
+        foilLayer(canvas, art, left, top, overlayPaint, 0.4f * strength, foil)
         // Holo edge: the white outline takes the colour directly, a little weaker
         foilLayer(canvas, ring, left, top, overPaint, 0.6f * strength, foil)
 
@@ -320,30 +315,26 @@ class HoloStickerView @JvmOverloads constructor(
         shaderMatrix.setTranslate(tx * 4 * density, ty * 4 * density)
         etch.setLocalMatrix(shaderMatrix)
         etchPaint.shader = etch
-        foilLayer(canvas, bmp, left, top, overlayPaint, (0.35f + 0.4f * motion) * holoIntensity) {
+        foilLayer(canvas, bmp, left, top, overlayPaint, (0.15f + 0.45f * motion) * holoIntensity) {
             canvas.drawRect(bounds, etchPaint)
         }
         shaderMatrix.setTranslate(tx * 14 * density, -ty * 14 * density)
         glitter.setLocalMatrix(shaderMatrix)
         glitterPaint.shader = glitter
-        foilLayer(canvas, bmp, left, top, screenPaint, (0.25f + 0.65f * motion) * holoIntensity) {
+        foilLayer(canvas, bmp, left, top, screenPaint, (0.08f + 0.8f * motion) * holoIntensity) {
             canvas.drawRect(bounds, glitterPaint)
         }
 
         // (4) Wide glare band sweeping across, near white at its core when lined up
         // Rests off-centre (catching a corner); tilting sweeps it over the sprite and off again
-        val sweep = (0.55f + (tx - ty)).coerceIn(-1.6f, 1.6f)
-        val nx = -dy // glare runs along the bands, travels across them
-        val ny = dx
-        val cx = left + size / 2f + nx * sweep * size
-        val cy = top + size / 2f + ny * sweep * size
-        val half = size * 0.3f
-        glarePaint.shader = LinearGradient(
-            cx - nx * half, cy - ny * half, cx + nx * half, cy + ny * half,
-            intArrayOf(Color.TRANSPARENT, Color.argb(130, 255, 255, 255), Color.WHITE, Color.argb(130, 255, 255, 255), Color.TRANSPARENT),
-            floatArrayOf(0f, 0.3f, 0.5f, 0.7f, 1f), Shader.TileMode.CLAMP
+        val gx = left + size * (0.5f + tx * 0.75f)
+        val gy = top + size * (0.5f - ty * 0.75f)
+        glarePaint.shader = RadialGradient(
+            gx, gy, size * 0.55f,
+            intArrayOf(Color.WHITE, Color.argb(120, 255, 255, 255), Color.TRANSPARENT),
+            floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP
         )
-        foilLayer(canvas, bmp, left, top, screenPaint, (0.45f + 0.3f * motion) * holoIntensity / 0.8f) {
+        foilLayer(canvas, bmp, left, top, screenPaint, (0.1f + 0.65f * motion) * holoIntensity / 0.8f) {
             canvas.drawRect(bounds, glarePaint)
         }
     }
