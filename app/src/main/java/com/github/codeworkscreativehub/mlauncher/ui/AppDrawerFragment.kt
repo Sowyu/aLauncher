@@ -182,6 +182,8 @@ class AppDrawerFragment : BaseFragment() {
             this.layoutManager = layoutManager
             // No item animations: rows must never be left mid-fade while the drawer is hidden
             itemAnimator = null
+            // Rows fade out exactly where they meet the status bar and the search pill
+            edgeFadeLength = (28 * resources.displayMetrics.density).toInt()
             adapter = appAdapter
         }
 
@@ -309,31 +311,63 @@ class AppDrawerFragment : BaseFragment() {
 
     // ---------------------------------------------------------------- layout
 
-    /** Status bar on top; search pill rides on the nav bar or the keyboard, animated with the IME. */
+    /**
+     * The list fills the panel and scrolls under the status bar and the search pill. Paddings
+     * keep its first/last rows clear of them; the pill rides on the nav bar or the keyboard,
+     * following the IME animation frame by frame.
+     */
     private fun setupInsets() {
         val panel = binding.mainLayout
-        val baseMargin = (12 * resources.displayMetrics.density).toInt()
+        val density = resources.displayMetrics.density
+        val gap = (8 * density).toInt()
+        val pillMargin = (12 * density).toInt()
+        val pillHeight = (56 * density).toInt()
+        var statusTop = 0
         var imeAnimating = false
 
-        fun applyBottom(insets: WindowInsetsCompat) {
-            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-            val bottom = maxOf(ime, nav) + baseMargin
-            if (!binding.searchContainer.isVisible) {
-                // No search pill: the list itself keeps clear of the nav bar
-                binding.appsRecyclerView.updatePadding(bottom = bottom)
-                return
-            }
-            val params = binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
-            if (params.bottomMargin != bottom) {
-                params.bottomMargin = bottom
-                binding.searchContainer.layoutParams = params
+        fun applyTop() {
+            val b = _binding ?: return
+            b.drawerHeader.updatePadding(top = statusTop)
+            val headerBottom = if (b.appDrawerTip.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
+            val top = maxOf(statusTop, headerBottom) + gap
+            if (b.appsRecyclerView.paddingTop != top) b.appsRecyclerView.updatePadding(top = top)
+            (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
+                if (it.topMargin != top) {
+                    it.topMargin = top
+                    b.sidebarContainer.layoutParams = it
+                }
             }
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(panel) { v, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()).top
-            v.updatePadding(top = top)
+        fun applyBottom(insets: WindowInsetsCompat) {
+            val b = _binding ?: return
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            val inset = maxOf(ime, nav)
+            val listBottom = if (b.searchContainer.isVisible) {
+                val params = b.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
+                if (params.bottomMargin != inset + pillMargin) {
+                    params.bottomMargin = inset + pillMargin
+                    b.searchContainer.layoutParams = params
+                }
+                inset + pillMargin + pillHeight + gap
+            } else {
+                inset + gap
+            }
+            if (b.appsRecyclerView.paddingBottom != listBottom) b.appsRecyclerView.updatePadding(bottom = listBottom)
+            (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
+                if (it.bottomMargin != listBottom) {
+                    it.bottomMargin = listBottom
+                    b.sidebarContainer.layoutParams = it
+                }
+            }
+        }
+
+        binding.drawerHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyTop() }
+
+        ViewCompat.setOnApplyWindowInsetsListener(panel) { _, insets ->
+            statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()).top
+            applyTop()
             if (!imeAnimating) applyBottom(insets)
             insets
         }
@@ -435,6 +469,14 @@ class AppDrawerFragment : BaseFragment() {
         // The backdrop is static: cache it in a GPU layer while it fades so frames stay cheap
         val layer = if (progress > 0f && progress < 1f) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
         if (b.drawerBackdrop.layerType != layer) b.drawerBackdrop.setLayerType(layer, null)
+    }
+
+    /** False when the list view is detached, or has data but laid out no rows. */
+    fun isListHealthy(): Boolean {
+        val rv = _binding?.appsRecyclerView ?: return false
+        if (!rv.isAttachedToWindow || rv.adapter == null) return false
+        val items = rv.adapter?.itemCount ?: 0
+        return items == 0 || rv.childCount > 0 || rv.isLayoutRequested
     }
 
     @SuppressLint("NotifyDataSetChanged")

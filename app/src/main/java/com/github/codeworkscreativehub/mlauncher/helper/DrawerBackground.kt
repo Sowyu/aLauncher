@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.ImageDecoder
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RectF
@@ -156,17 +157,21 @@ object DrawerBackground {
             val src = loadSourceDrawable(context) ?: return null
             val rw = (w * RENDER_SCALE).roundToInt().coerceAtLeast(1)
             val rh = (h * RENDER_SCALE).roundToInt().coerceAtLeast(1)
-            val cropped = centerCrop(src, rw, rh)
             // Radius is in screen px; the bitmap is RENDER_SCALE of the screen, so scale it with it
             val r = radius * STRENGTH * RENDER_SCALE
-            when {
-                r < 1f -> cropped
+            // Blur an oversized crop and keep its middle: edge pixels then come from inside the
+            // photo instead of being smeared outward (a bright lamp at the edge used to glow).
+            val pad = if (r < 1f) 0 else (r * 2f).roundToInt()
+            val oversized = centerCrop(src, rw + 2 * pad, rh + 2 * pad)
+            val blurred = when {
+                r < 1f -> oversized
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-                    (runCatching { blurOnGpu(cropped, r) }.getOrNull() ?: cheapBlur(cropped, r))
-                        .also { if (it !== cropped) cropped.recycle() }
+                    runCatching { blurOnGpu(oversized, r) }.getOrNull() ?: cheapBlur(oversized, r)
 
-                else -> cheapBlur(cropped, r).also { if (it !== cropped) cropped.recycle() }
+                else -> cheapBlur(oversized, r)
             }
+            if (blurred !== oversized) oversized.recycle()
+            finish(blurred, pad, rw, rh).also { blurred.recycle() }
         } catch (t: Throwable) {
             AppLogger.e(TAG, "Could not build drawer background", t)
             null
@@ -175,6 +180,19 @@ object DrawerBackground {
         cacheKey = key
         cacheBitmap = result
         return result
+    }
+
+    /** Crop the padding off and darken the bottom ~15% so nothing glows under the search pill. */
+    private fun finish(blurred: Bitmap, pad: Int, w: Int, h: Int): Bitmap {
+        val out = createBitmap(w, h)
+        val canvas = Canvas(out)
+        canvas.drawBitmap(blurred, -pad.toFloat(), -pad.toFloat(), Paint(Paint.FILTER_BITMAP_FLAG))
+        val top = h * 0.85f
+        val shade = Paint().apply {
+            shader = LinearGradient(0f, top, 0f, h.toFloat(), 0x00000000, 0x59000000, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRect(0f, top, w.toFloat(), h.toFloat(), shade)
+        return out
     }
 
     private fun sourceStamp(context: Context): Long {

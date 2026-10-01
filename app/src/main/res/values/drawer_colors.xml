@@ -3,6 +3,6 @@
     <!-- App drawer, light theme -->
     <color name="drawer_scrim">#33FBF6FA</color>
     <color name="drawer_scrim_solid">#E6FBF6FA</color>
-    <color name="drawer_search_bg">#D9FFFFFF</color>
+    <color name="drawer_search_bg">#E6FFFFFF</color>
     <color name="drawer_search_icon">#6B5C6B</color>
 </resources>

@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.KeyEvent
@@ -15,7 +16,6 @@ import android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var pickCustomFont: ActivityResultLauncher<Array<String>>
 
-    private lateinit var pickDrawerBackground: ActivityResultLauncher<PickVisualMediaRequest>
+    private lateinit var pickDrawerBackground: ActivityResultLauncher<Intent>
     private var onDrawerBackgroundPicked: ((Boolean) -> Unit)? = null
 
     private lateinit var setDefaultHomeScreenLauncher: ActivityResultLauncher<Intent>
@@ -267,10 +267,11 @@ class MainActivity : AppCompatActivity() {
             uri?.let { handleFontSelected(it) }
         }
 
-        pickDrawerBackground = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        pickDrawerBackground = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val callback = onDrawerBackgroundPicked
             onDrawerBackgroundPicked = null
-            if (uri == null) return@registerForActivityResult
+            val uri = result.data?.data ?: result.data?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+            if (result.resultCode != RESULT_OK || uri == null) return@registerForActivityResult
             lifecycleScope.launch {
                 val ok = withContext(Dispatchers.IO) { DrawerBackground.importImage(this@MainActivity, uri) }
                 showLongToast(if (ok) "Drawer background set" else "Could not use that image")
@@ -447,7 +448,17 @@ class MainActivity : AppCompatActivity() {
     fun pickDrawerBackground(onDone: ((Boolean) -> Unit)? = null) {
         onDrawerBackgroundPicked = onDone
         expectReturn()
-        pickDrawerBackground.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        // Plain single-select photo picker: one tap picks and returns, no "Done" step
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Intent(MediaStore.ACTION_PICK_IMAGES).setType("image/*")
+        } else {
+            Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        try {
+            pickDrawerBackground.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            pickDrawerBackground.launch(Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE))
+        }
     }
 
     fun setDefaultHomeScreen(context: Context, checkDefault: Boolean = false) {

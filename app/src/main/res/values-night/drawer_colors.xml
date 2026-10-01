@@ -3,6 +3,6 @@
     <!-- App drawer, dark theme: plum-black scrim over the blurred wallpaper -->
     <color name="drawer_scrim">#33120E1A</color>
     <color name="drawer_scrim_solid">#D9120E1A</color>
-    <color name="drawer_search_bg">#D11E1826</color>
+    <color name="drawer_search_bg">#D91E1826</color>
     <color name="drawer_search_icon">#B8A9B8</color>
 </resources>

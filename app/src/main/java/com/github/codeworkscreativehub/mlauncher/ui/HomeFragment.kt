@@ -1216,11 +1216,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private fun interactiveDrawerEnabled() = prefs.shortSwipeUpAction == Action.ShowAppList
 
     private fun setupDrawer(savedInstanceState: Bundle?) {
-        if (childFragmentManager.findFragmentById(R.id.drawerContainer) == null) {
-            childFragmentManager.beginTransaction()
-                .replace(R.id.drawerContainer, AppDrawerFragment.newEmbedded())
-                .commitNow()
-        }
+        // A fresh drawer for every home view. Reusing the old child across a view rebuild (coming
+        // back from settings, especially after the activity saved its state for a picker) left
+        // its list attached to a dead hierarchy: rows never laid out until the process restarted.
+        attachFreshDrawer()
 
         binding.homeRoot.callback = object : VerticalDragLayout.Callback {
             override fun shouldStartDrag(downX: Float, downY: Float, dy: Float): Boolean =
@@ -1257,8 +1256,25 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.homeRoot.post { if (_binding != null) applyDrawerProgress(if (reopen) 1f else 0f) }
     }
 
+    private fun attachFreshDrawer() {
+        childFragmentManager.beginTransaction()
+            .replace(R.id.drawerContainer, AppDrawerFragment.newEmbedded())
+            .commitNowAllowingStateLoss()
+    }
+
+    /** Guard: if the drawer's list is detached or stuck without rows, swap in a new drawer. */
+    private fun ensureDrawerHealthy() {
+        if (!isAdded || _binding == null) return
+        val drawer = drawerFragment
+        if (drawer == null || !drawer.isListHealthy()) {
+            AppLogger.w("HomeFragment", "Drawer list was not healthy; rebuilding it")
+            attachFreshDrawer()
+        }
+    }
+
     /** Open the drawer with an animation, optionally pre-filling the search field. */
     fun openDrawer(query: String? = null) {
+        ensureDrawerHealthy()
         val drawer = drawerFragment ?: return
         drawer.onDrawerOpening()
         if (query != null) drawer.setSearchQuery(query)
@@ -1283,7 +1299,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     override fun onDrawerDragStart() {
         drawerAnimator?.cancel()
         dragStartProgress = drawerProgress
-        if (drawerProgress == 0f) drawerFragment?.onDrawerOpening()
+        if (drawerProgress == 0f) {
+            ensureDrawerHealthy()
+            drawerFragment?.onDrawerOpening()
+        }
     }
 
     override fun onDrawerDrag(dy: Float) {
