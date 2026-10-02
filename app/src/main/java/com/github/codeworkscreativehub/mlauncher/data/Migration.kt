@@ -68,6 +68,12 @@ class Migration(val context: Context) {
             }
         }
 
+        // Build 51: right-aligned after all (vertically centred stays). Undo the build 49 flip.
+        if (savedVersionCode in 1..1120150 && currentVersionCode >= 1120151) {
+            if (prefs.homeAlignment == Constants.Gravity.Center) prefs.homeAlignment = Constants.Gravity.Right
+            prefs.homeAlignmentBottom = false
+        }
+
         for ((version, keys) in versionCleanupMap) {
             // Only versions newer than the one last run; an inclusive lower bound re-ran them every launch
             if (version > savedVersionCode && version <= currentVersionCode) {

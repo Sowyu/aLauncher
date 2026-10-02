@@ -243,6 +243,7 @@ class AppDrawerFragment : BaseFragment() {
 
         binding.appsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                positionPill()
                 val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
                 val itemCount = lm.itemCount
                 if (itemCount == 0) return
@@ -387,18 +388,25 @@ class AppDrawerFragment : BaseFragment() {
         val pill = b.searchContainer
         val rv = b.appsRecyclerView
         val up = if (pill.isVisible) pillUpFraction() else 0f
-        // The list keeps a slot for it under the pinned grid while it's up there
-        val slot = ((pill.height + 16 * resources.displayMetrics.density) * up).toInt()
+        val inset = (6 * resources.displayMetrics.density).toInt()
+        // The list keeps a slot for it right under the pinned grid while it's up there
+        val slot = ((pill.height + 2 * inset) * up).toInt()
         if (rv.isComputingLayout) rv.post { pillSlot.setHeight(slot) } else pillSlot.setHeight(slot)
-        rv.findViewHolderForAdapterPosition(0)?.itemView?.let {
-            if (::pinnedAdapter.isInitialized && pinnedAdapter.itemCount > 0) pinnedHeight = it.height
-        }
-        if (!::pinnedAdapter.isInitialized || pinnedAdapter.itemCount == 0) pinnedHeight = 0
+
+        // Sticky: it rides in its slot under the pinned grid, and once the slot scrolls past the
+        // top of the list it stays at the top (under the handle) while rows pass beneath it
+        val listTop = rv.paddingTop
+        val slotTop = pillSlot.attachedView()?.takeIf { it.parent === rv }?.top
+        val restY = if (slotTop != null) maxOf(listTop, slotTop + inset) else listTop
+        val stuck = slotTop == null || slotTop + inset <= listTop
+
         val atBottom = -sheetTop
         val natural = (b.mainLayout.height - pill.height -
             ((pill.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin)).toFloat()
-        val underPinned = rv.paddingTop + pinnedHeight + 8 * resources.displayMetrics.density - natural
-        pill.translationY = atBottom + (underPinned - atBottom) * up + pillRise
+        val underPins = restY - natural
+        pill.translationY = atBottom + (underPins - atBottom) * up + pillRise
+        // Rows fade out where they slide under the stuck pill
+        rv.fadeTopAt = if (up > 0.5f && stuck) restY + pill.height + inset else -1
     }
 
     /**
@@ -559,9 +567,10 @@ class AppDrawerFragment : BaseFragment() {
                 left = if (sidebarOnEnd) 0 else gap,
                 right = if (sidebarOnEnd) gap else 0,
             )
-            // The search pill stops short of the sidebar (14dp margin + 32dp strip + 8dp), in every position
-            val clear = (54 * density).toInt()
-            val normal = (16 * density).toInt()
+            // The search pill lines up with the list content on the open side (20dp) and leaves
+            // the same kind of gap before the sidebar strip (14dp margin + 32dp strip + 12dp)
+            val clear = (58 * density).toInt()
+            val normal = (20 * density).toInt()
             (binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams).apply {
                 marginStart = if (sidebarOnEnd) normal else clear
                 marginEnd = if (sidebarOnEnd) clear else normal
@@ -1122,6 +1131,8 @@ private class PillSlotAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() 
     }
 
     override fun getItemCount() = if (height > 0) 1 else 0
+
+    fun attachedView(): View? = view
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val v = View(parent.context).apply {
