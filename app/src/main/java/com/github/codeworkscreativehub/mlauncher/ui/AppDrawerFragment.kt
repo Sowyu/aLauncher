@@ -385,11 +385,24 @@ class AppDrawerFragment : BaseFragment() {
             b.drawerHeader.updatePadding(top = statusTop)
             val headerBottom = if (b.appDrawerTip.isVisible || b.pickerTitle.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
             drawerStatusTop = statusTop
-            // As a sheet: room for the grab handle, plus whatever part of the status bar the sheet
-            // has slid under (all of it at full screen, none at half)
-            val statusPart = if (isEmbedded) handleArea + (statusTop - sheetTop.toInt()).coerceIn(0, statusTop) else statusTop
-            val top = maxOf(statusPart, if (isEmbedded) 0 else headerBottom) + gap
-            if (b.appsRecyclerView.paddingTop != top) b.appsRecyclerView.updatePadding(top = top)
+            val top = if (isEmbedded) {
+                // As a sheet: room for the grab handle at half; as the sheet slides under the
+                // status bar this blends into the status bar inset + 16dp gap of the full screen
+                val atHalf = handleArea + gap
+                val atFull = statusTop + (16 * resources.displayMetrics.density).toInt()
+                val under = if (statusTop > 0) ((statusTop - sheetTop) / statusTop).coerceIn(0f, 1f) else 1f
+                (atHalf + (atFull - atHalf) * under).toInt()
+            } else {
+                maxOf(statusTop, headerBottom) + gap
+            }
+            val rv = b.appsRecyclerView
+            if (rv.paddingTop != top) {
+                // A layout keeps the first row where it was in pixels, so growing the padding would
+                // push it under the status bar. If the list was at its top, keep it at the top.
+                val wasAtTop = !rv.canScrollVertically(-1)
+                rv.updatePadding(top = top)
+                if (wasAtTop) rv.scrollToPosition(0)
+            }
             (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
                 if (it.topMargin != top) {
                     it.topMargin = top
@@ -559,8 +572,11 @@ class AppDrawerFragment : BaseFragment() {
         val oldTop = sheetTop
         sheetTop = top
         b.mainLayout.translationY = top
-        // The pill stays at the bottom of the screen whatever the sheet does
-        b.searchContainer.translationY = -top
+        // The pill belongs to the sheet but lives at the bottom of the screen: it stays put and
+        // just fades in and rises 16dp as the sheet comes up to half, reversing on the way down
+        val arrive = (progress / HomeFragment.SHEET_HALF).coerceIn(0f, 1f)
+        b.searchContainer.translationY = -top + (1f - arrive) * 16f * resources.displayMetrics.density
+        b.searchContainer.alpha = arrive
         // Blurred wallpaper stays aligned with the real one; only the sheet-shaped window moves.
         // Corners round off as the sheet leaves the top of the screen.
         val corner = 28f * resources.displayMetrics.density
