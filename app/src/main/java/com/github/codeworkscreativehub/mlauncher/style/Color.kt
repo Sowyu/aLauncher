@@ -8,6 +8,8 @@ import androidx.compose.ui.graphics.Color
 data class SettingsPalette(
     val background: Color,
     val surface: Color,
+    /** Fields and raised elements on top of [surface]. */
+    val elevated: Color,
     val accent: Color,
     val onAccent: Color,
     val text: Color,
@@ -25,6 +27,7 @@ data class SettingsPalette(
 val DarkSettingsPalette = SettingsPalette(
     background = Color(0xFF120E1A),
     surface = Color(0xFF1E1826),
+    elevated = Color(0xFF2A2333),
     accent = Color(0xFFE4B9E2),
     onAccent = Color(0xFF3B1830),
     text = Color(0xFFF3EAF3),
@@ -35,6 +38,7 @@ val DarkSettingsPalette = SettingsPalette(
 val LightSettingsPalette = SettingsPalette(
     background = Color(0xFFFBF6FA),
     surface = Color(0xFFFFFFFF),
+    elevated = Color(0xFFF1E6F0),
     accent = Color(0xFF8E4A8A),
     onAccent = Color(0xFFFFFFFF),
     text = Color(0xFF1E1826),
