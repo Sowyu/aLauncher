@@ -2,8 +2,8 @@ package com.github.codeworkscreativehub.common
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
-import android.util.TypedValue
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -14,8 +14,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.DrawableRes
 import androidx.appcompat.widget.AppCompatImageView
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.github.codeworkscreativehub.mlauncher.R
+import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 
 fun Fragment.showLongToast(message: String) {
     showCustomToast(this, message, iconRes = R.drawable.ic_toast, delayMillis = 3000L)
@@ -29,89 +31,67 @@ fun Fragment.showInstantToast(message: String) {
     showCustomToast(this, message, iconRes = R.drawable.ic_toast)
 }
 
+/** Floating pill above the bottom edge: elevated plum surface, mauve icon, theme text. */
 fun showCustomToast(
     fragment: Fragment,
     message: String,
     @DrawableRes iconRes: Int? = null,
     delayMillis: Long = 500L // Optional delay time before hiding
 ) {
+    val context = fragment.requireContext()
     val rootView = fragment.requireActivity().window.decorView as ViewGroup
 
-    // Helper to convert dp to pixels
-    fun Int.dp(): Int =
-        (this * fragment.resources.displayMetrics.density).toInt()
+    fun Int.dp(): Int = (this * fragment.resources.displayMetrics.density).toInt()
 
-    // Create the overlay container
-    val overlay = LinearLayout(fragment.requireContext()).apply {
+    val overlay = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
-        setBackgroundColor(Color.DKGRAY)
-        setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
-        alpha = 0f
         gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = 52.dp()
+        background = GradientDrawable().apply {
+            cornerRadius = 26.dp().toFloat()
+            setColor(ContextCompat.getColor(context, R.color.ui_elevated))
+        }
+        setPadding(if (iconRes != null) 16.dp() else 22.dp(), 12.dp(), 22.dp(), 12.dp())
+        alpha = 0f
         layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-        ).apply { bottomMargin = 150.dp() }
-    }
-
-    // Optional icon
-    iconRes?.let {
-        val iconView = AppCompatImageView(fragment.requireContext()).apply {
-            setImageResource(it)
-            layoutParams = LinearLayout.LayoutParams(
-                TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP,
-                    26f,
-                    resources.displayMetrics
-                ).toInt(),
-                TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP,
-                    26f,
-                    resources.displayMetrics
-                ).toInt()
-            ).apply {
-                val margin = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP,
-                    8f,
-                    resources.displayMetrics
-                ).toInt()
-                setMargins(margin, 0, margin, 0)
-            }
-
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            adjustViewBounds = true
-            contentDescription = getLocalizedString(R.string.show)
-            elevation = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                6f,
-                resources.displayMetrics
-            )
+        ).apply {
+            bottomMargin = 120.dp()
+            leftMargin = 24.dp()
+            rightMargin = 24.dp()
         }
-        overlay.addView(iconView)
     }
 
+    iconRes?.let {
+        overlay.addView(AppCompatImageView(context).apply {
+            setImageResource(it)
+            imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.ui_accent))
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            layoutParams = LinearLayout.LayoutParams(20.dp(), 20.dp()).apply { marginEnd = 12.dp() }
+        })
+    }
 
-    // Message text
-    overlay.addView(TextView(fragment.requireContext()).apply {
+    overlay.addView(TextView(context).apply {
         text = message
-        setTextColor(Color.WHITE)
-        textSize = 14f
+        setTextColor(ContextCompat.getColor(context, R.color.ui_text))
+        textSize = 15f
+        FontManager.getTypeface(context)?.let { typeface = it }
+        accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
     })
 
-    // Show overlay with animation and auto-dismiss
     rootView.addView(overlay)
     overlay.animate()
         .alpha(1f)
-        .setDuration(100)
+        .setDuration(150)
         .withEndAction {
             overlay.animate()
                 .alpha(0f)
-                .setDuration(300)
-                .setStartDelay(delayMillis) // 🕒 uses passed delay
-                .withEndAction {
-                    rootView.removeView(overlay)
-                }
+                .setDuration(250)
+                .setStartDelay(delayMillis)
+                .withEndAction { rootView.removeView(overlay) }
                 .start()
         }
         .start()

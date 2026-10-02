@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Shared look for View-based surfaces outside settings: dialogs, pickers, onboarding,
+        the favourites screen. Colours come from ui_colors.xml (light and night variants), so
+        one style serves both themes. Matches the Compose SettingsTheme.
+    -->
+
+    <!-- Buttons: fully rounded pills, no shadow, no caps -->
+    <style name="Widget.ALauncher.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">24dp</item>
+        <item name="android:paddingEnd">24dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:fontFamily">@font/google_sans_flex_medium</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="elevation">0dp</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="backgroundTint">@color/ui_button_primary_bg</item>
+        <item name="android:textColor">@color/ui_button_primary_text</item>
+        <item name="rippleColor">@color/ui_ripple</item>
+    </style>
+
+    <!-- Secondary action that still needs weight: elevated plum fill, mauve text -->
+    <style name="Widget.ALauncher.Button.Tonal">
+        <item name="backgroundTint">@color/ui_button_tonal_bg</item>
+        <item name="android:textColor">@color/ui_button_accent_text</item>
+    </style>
+
+    <style name="Widget.ALauncher.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:fontFamily">@font/google_sans_flex_medium</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:textColor">@color/ui_button_accent_text</item>
+        <item name="rippleColor">@color/ui_ripple</item>
+    </style>
+
+    <!-- Dialog button bar: primary is a mauve pill, the others are mauve text -->
+    <style name="Widget.ALauncher.Button.Dialog">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="cornerRadius">24dp</item>
+    </style>
+
+    <style name="Widget.ALauncher.Button.Text.Dialog">
+        <item name="android:layout_marginStart">4dp</item>
+    </style>
+
+    <style name="TextAppearance.ALauncher.DialogTitle" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textSize">22sp</item>
+        <item name="android:lineHeight">28sp</item>
+        <item name="android:fontFamily">@font/google_sans_flex_medium</item>
+        <item name="fontFamily">@font/google_sans_flex_medium</item>
+        <item name="android:textColor">@color/ui_text</item>
+    </style>
+
+    <style name="TextAppearance.ALauncher.DialogBody" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textSize">16sp</item>
+        <item name="android:lineHeight">23sp</item>
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
+        <item name="android:textColor">@color/ui_text_secondary</item>
+    </style>
+
+    <style name="ALauncher.DialogTitle" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textAppearance">@style/TextAppearance.ALauncher.DialogTitle</item>
+        <item name="android:textColor">@color/ui_text</item>
+    </style>
+
+    <style name="ALauncher.DialogBody" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:textAppearance">@style/TextAppearance.ALauncher.DialogBody</item>
+        <item name="android:textColor">@color/ui_text_secondary</item>
+    </style>
+
+    <!--
+        Every MaterialAlertDialogBuilder in the app: #1E1826 surface, 28dp corners (Material3
+        default), 22sp title, pill buttons. Set as materialAlertDialogTheme in every
+        Theme.mLauncher variant. Use MaterialAlertDialogBuilder, not AppCompat's AlertDialog.
+    -->
+    <style name="ThemeOverlay.ALauncher.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/ui_accent</item>
+        <item name="colorOnPrimary">@color/ui_on_accent</item>
+        <item name="colorSecondary">@color/ui_accent</item>
+        <item name="colorAccent">@color/ui_accent</item>
+        <item name="colorControlActivated">@color/ui_accent</item>
+        <item name="colorControlNormal">@color/ui_text_secondary</item>
+        <item name="colorSurface">@color/ui_surface</item>
+        <item name="colorSurfaceContainerHigh">@color/ui_surface</item>
+        <item name="colorOnSurface">@color/ui_text</item>
+        <item name="colorOnSurfaceVariant">@color/ui_text_secondary</item>
+        <item name="android:textColorPrimary">@color/ui_text</item>
+        <item name="android:textColorSecondary">@color/ui_text_secondary</item>
+        <item name="android:textColorAlertDialogListItem">@color/ui_text</item>
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/ALauncher.DialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/ALauncher.DialogBody</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.ALauncher.Button.Dialog</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.ALauncher.Button.Text.Dialog</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.ALauncher.Button.Text.Dialog</item>
+    </style>
+</resources>
