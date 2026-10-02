@@ -315,8 +315,12 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val size = sticker.layoutParams.width.toFloat()
         // Anchor the sticker's bottom-right to the clock's bottom-right corner, so a bigger
         // sticker grows up and left from the corner instead of drifting off it
-        val cx = clockLeft + clock.width - size * 0.32f
-        val cy = digitsTop + digitsHeight - size * 0.18f
+        // Centred on the clock's bottom-right corner, so it hangs off the corner like a sticker
+        val textRight = clockLeft + clock.width - clock.paddingRight -
+            ((clock.width - clock.paddingLeft - clock.paddingRight) - clock.paint.measureText(clock.text.toString())).coerceAtLeast(0f) *
+            (if (clock.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK == android.view.Gravity.CENTER_HORIZONTAL) 0.5f else 0f)
+        val cx = textRight
+        val cy = digitsTop + digitsHeight
         val margin = 8 * resources.displayMetrics.density
         val maxX = b.mainLayout.width - size - margin
         sticker.translationX = (cx - size / 2f).coerceIn(margin, maxOf(margin, maxX))
