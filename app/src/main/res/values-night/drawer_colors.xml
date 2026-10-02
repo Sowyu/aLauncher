@@ -19,5 +19,6 @@
 
     <!-- Pinned icon row at the top of the drawer -->
     <color name="drawer_pinned_label">#B8A9B8</color>
-    <color name="drawer_pinned_divider">#2A2333</color>
+    <!-- Card behind the pinned grid, ~60% -->
+    <color name="drawer_pinned_surface">#991E1826</color>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accessibility action ids on a pinned cell, so a rebind can replace them -->
+    <item name="pinned_move_actions" type="id" />
+</resources>

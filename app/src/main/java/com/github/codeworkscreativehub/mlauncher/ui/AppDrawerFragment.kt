@@ -181,8 +181,15 @@ class AppDrawerFragment : BaseFragment() {
         appsAdapter = appAdapter
 
         pinnedAdapter = PinnedAppsAdapter(
+            gravity = gravity,
             onClick = appClickListener(viewModel, flag, n),
             onLongClick = { app, slot -> appAdapter.showContextMenu(app, slot, Gravity.CENTER_HORIZONTAL, null) },
+            onDragStart = { appAdapter.closeOpenedMenu() },
+            onReorder = { ordered ->
+                // Pins of hidden or uninstalled apps aren't on screen; they keep their place at the end
+                val keys = ordered.map { it.pinKey }
+                prefs.pinnedRow = keys + prefs.pinnedRow.filterNot { it in keys }
+            },
             bindIcon = appAdapter::bindIcon,
             labelOf = { app -> prefs.getAppAlias(app.activityPackage).takeIf { it.isNotBlank() } ?: app.activityLabel },
         )

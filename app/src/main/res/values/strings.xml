@@ -389,7 +389,10 @@
     <string name="unlocked">Unlocked</string>
     <string name="pin">Pin</string>
     <string name="unpin">Unpin</string>
-    <string name="pinned_row_full">Pinned row is full. Unpin an app first.</string>
+    <string name="pinned_row_full">Pinned apps are full. Unpin one first.</string>
+    <string name="pinned_header">Pinned</string>
+    <string name="pinned_move_left">Move left</string>
+    <string name="pinned_move_right">Move right</string>
     <string name="rename">Rename</string>
     <string name="tag">Tag</string>
     <string name="info">Info</string>
