@@ -15,6 +15,9 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import androidx.annotation.RequiresApi
+import android.os.Build
+import android.graphics.RuntimeShader
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -336,64 +339,142 @@ class HoloStickerView @JvmOverloads constructor(
         // ~50% at rest, ~85% fully tilted, at the default intensity of 0.8
         val strength = ((0.22f + 0.5f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
 
-        // Band direction ~60°; tilt slides the bands ~2 sticker widths over the full range
-        // Light point: follows the tilt in any direction. The rainbow ripples out from it in rings,
-        // so the colours flow whichever way the phone moves (no fixed band direction).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && foilShader != null) {
+            drawFoilShader(canvas, art, ring, left, top, size, tx, ty, motion, strength)
+        } else {
+            drawFoilLegacy(canvas, bmp, art, ring, left, top, size, tx, ty, motion, strength)
+        }
+    }
+
+    /**
+     * Physically-motivated holo foil (API 33+): the foil's structure is fixed to the sticker,
+     * like a real card. Tilt only changes the view/light angle, which changes the colour each
+     * point diffracts, which etched lines glint, and which glitter flakes catch the light.
+     * The specular sheen is the one thing that moves, because a reflection does move.
+     */
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun drawFoilShader(
+        canvas: Canvas, art: Bitmap, ring: Bitmap, left: Float, top: Float, size: Float,
+        tx: Float, ty: Float, motion: Float, strength: Float,
+    ) {
+        val sh = foilShader as RuntimeShader
+        sh.setFloatUniform("origin", left, top)
+        sh.setFloatUniform("size", size)
+        sh.setFloatUniform("tilt", tx, ty)
+        sh.setFloatUniform("spin", spin)
+        sh.setFloatUniform("strength", strength)
+        foilPaint.shader = sh
+        val foil = { canvas.drawRect(bounds, foilPaint) }
+        foilLayer(canvas, art, left, top, screenPaint, 0.9f, foil)
+        foilLayer(canvas, art, left, top, overlayPaint, 0.35f, foil)
+        // Holo edge on the die-cut border, a little weaker
+        foilLayer(canvas, ring, left, top, overPaint, 0.65f, foil)
+    }
+
+    private val foilPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private val foilShader: Any? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try { RuntimeShader(FOIL_AGSL) } catch (e: Exception) {
+                android.util.Log.e("HoloSticker", "foil shader failed to compile", e); null
+            }
+        } else null
+    }
+
+    private fun drawFoilLegacy(
+        canvas: Canvas, bmp: Bitmap, art: Bitmap, ring: Bitmap, left: Float, top: Float, size: Float,
+        tx: Float, ty: Float, motion: Float, strength: Float,
+    ) {
+        // Older Android: static etch/glitter (never translated), only colour + sheen respond to tilt
         val period = size / 2.4f
-        val lx = left + size * (0.5f + tx * 1.1f)
-        val ly = top + size * (0.5f - ty * 1.1f)
-        // Rings drift outward as the tilt grows, so even a slow tilt keeps the colours moving
-        val drift = motion * period * 1.5f
-        rainbowPaint.shader = RadialGradient(lx, ly, period, rainbow, null, Shader.TileMode.REPEAT).also { g ->
-            shaderMatrix.reset()
-            shaderMatrix.postScale(1f + drift / size, 1f + drift / size, lx, ly)
-            shaderMatrix.postRotate(Math.toDegrees(spin.toDouble()).toFloat(), left + size / 2f, top + size / 2f)
+        rainbowPaint.shader = LinearGradient(left, top, left + period * 0.5f, top + period * 0.866f, rainbow, null, Shader.TileMode.REPEAT).also { g ->
+            shaderMatrix.setTranslate((tx * 0.5f + ty * 0.866f) * period, 0f)
             g.setLocalMatrix(shaderMatrix)
         }
-        val ridge = period / 3.5f
-        ridgePaint.shader = RadialGradient(
-            lx, ly, ridge,
-            intArrayOf(Color.argb(255, 0, 0, 0), Color.argb(90, 0, 0, 0), Color.argb(255, 0, 0, 0)),
-            null, Shader.TileMode.REPEAT
-        )
-        val foil = {
-            canvas.drawRect(bounds, rainbowPaint)
-            canvas.drawRect(bounds, ridgePaint)
-        }
-        foilLayer(canvas, art, left, top, screenPaint, 0.6f * strength, foil)
-        foilLayer(canvas, art, left, top, overlayPaint, 0.4f * strength, foil)
-        // Holo edge: the white outline takes the colour directly, a little weaker
-        foilLayer(canvas, ring, left, top, overPaint, 0.6f * strength, foil)
-
-        // (2) Etched lines in overlay, (3) glitter catching the light
-        shaderMatrix.setTranslate(tx * 4 * density, ty * 4 * density)
+        foilLayer(canvas, art, left, top, screenPaint, 0.6f * strength) { canvas.drawRect(bounds, rainbowPaint) }
+        foilLayer(canvas, ring, left, top, overPaint, 0.5f * strength) { canvas.drawRect(bounds, rainbowPaint) }
+        shaderMatrix.reset()
         etch.setLocalMatrix(shaderMatrix)
         etchPaint.shader = etch
-        foilLayer(canvas, bmp, left, top, overlayPaint, (0.15f + 0.45f * motion) * holoIntensity) {
-            canvas.drawRect(bounds, etchPaint)
-        }
-        shaderMatrix.setTranslate(tx * 14 * density, -ty * 14 * density); shaderMatrix.postRotate(Math.toDegrees(spin.toDouble()).toFloat() * 2f, left + size / 2f, top + size / 2f)
+        foilLayer(canvas, bmp, left, top, overlayPaint, (0.1f + 0.35f * motion) * holoIntensity) { canvas.drawRect(bounds, etchPaint) }
         glitter.setLocalMatrix(shaderMatrix)
         glitterPaint.shader = glitter
-        foilLayer(canvas, bmp, left, top, screenPaint, (0.08f + 0.8f * motion) * holoIntensity) {
-            canvas.drawRect(bounds, glitterPaint)
-        }
-
-        // (4) Wide glare band sweeping across, near white at its core when lined up
-        // Rests off-centre (catching a corner); tilting sweeps it over the sprite and off again
-        val gx = left + size * (0.5f + tx * 0.75f)
-        val gy = top + size * (0.5f - ty * 0.75f)
-        glarePaint.shader = RadialGradient(
-            gx, gy, size * 0.55f,
+        foilLayer(canvas, bmp, left, top, screenPaint, (0.05f + 0.5f * motion) * holoIntensity) { canvas.drawRect(bounds, glitterPaint) }
+        val gx = left + size * (0.5f + tx * 0.7f)
+        val gy = top + size * (0.5f - ty * 0.7f)
+        glarePaint.shader = RadialGradient(gx, gy, size * 0.55f,
             intArrayOf(Color.WHITE, Color.argb(120, 255, 255, 255), Color.TRANSPARENT),
-            floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP
-        )
-        foilLayer(canvas, bmp, left, top, screenPaint, (0.1f + 0.65f * motion) * holoIntensity / 0.8f) {
-            canvas.drawRect(bounds, glarePaint)
-        }
+            floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP)
+        foilLayer(canvas, bmp, left, top, screenPaint, (0.1f + 0.5f * motion) * holoIntensity / 0.8f) { canvas.drawRect(bounds, glarePaint) }
     }
 
     private companion object {
         const val TILT_RANGE = 15f
+
+        // Foil model: a diffraction foil whose grating direction is fixed per point (gently
+        // warped across the card). The diffracted colour at a point depends on the angle
+        // between the view/light direction and that grating, so tilting sweeps colours
+        // through a pattern that itself never moves. Etched lines and glitter flakes are
+        // fixed to the card and only brighten when the angle suits their facet.
+        const val FOIL_AGSL = """
+            uniform float2 origin;
+            uniform float size;
+            uniform float2 tilt;
+            uniform float spin;
+            uniform float strength;
+
+            float hash(float2 p) { return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+            float noise(float2 p) {
+                float2 i = floor(p); float2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+                return mix(mix(hash(i), hash(i + float2(1, 0)), f.x),
+                           mix(hash(i + float2(0, 1)), hash(i + float2(1, 1)), f.x), f.y);
+            }
+            half3 spectrum(float h) {
+                h = fract(h);
+                return half3(clamp(abs(h * 6.0 - 3.0) - 1.0, 0.0, 1.0),
+                             clamp(2.0 - abs(h * 6.0 - 2.0), 0.0, 1.0),
+                             clamp(2.0 - abs(h * 6.0 - 4.0), 0.0, 1.0));
+            }
+
+            half4 main(float2 p) {
+                float2 uv = (p - origin) / size;
+                float c = cos(spin); float s = sin(spin);
+                // View/light direction from tilt; twisting the phone rotates it
+                float2 L = float2(c * tilt.x - s * tilt.y, s * tilt.x + c * tilt.y);
+                float lAmt = clamp(length(L), 0.0, 1.0);
+
+                // Grating direction fixed to the card, gently warped
+                float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
+                float2 g = float2(cos(ang), sin(ang));
+                // Diffracted colour: structure term (fixed) + angle term (tilt)
+                float phase = dot(uv, g) * 1.8 + dot(L, g) * 1.5 + noise(uv * 7.0) * 0.18;
+                half3 rb = mix(spectrum(phase), half3(1.0), 0.18);
+
+                // Specular sheen: the reflection of the light moves across the static foil
+                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.75;
+                float2 dh = uv - hc;
+                float sheen = exp(-dot(dh, dh) * 4.0);
+                // Foil only lights up near the reflection, like real cards (dull away from it)
+                float bright = 0.22 + 0.78 * sheen;
+
+                // Etched lines fixed to the card; they glint when the angle crosses them
+                float ln = abs(sin(dot(uv, float2(0.866, -0.5)) * 220.0));
+                float etch = smoothstep(0.85, 1.0, ln) * (0.2 + 0.8 * clamp(abs(dot(L, float2(0.5, 0.866))), 0.0, 1.0));
+
+                // Glitter flakes fixed in place, each with its own facet; a flake flashes when
+                // the tilt matches its facet, then goes dark again. They never move.
+                float2 cell = floor(uv * 48.0);
+                float2 f = fract(uv * 48.0) - 0.5;
+                float r = hash(cell);
+                float2 facet = float2(hash(cell + 3.1), hash(cell + 7.7)) * 2.2 - 1.1;
+                float match = clamp(1.0 - length(L - facet) * 1.6, 0.0, 1.0);
+                float flake = step(0.86, r) * smoothstep(0.42, 0.05, length(f)) * pow(match, 3.0);
+
+                float a = strength * bright;
+                half3 col = rb * bright + half3(etch * 0.35 * bright) + half3(flake * 1.4);
+                float alpha = clamp(a + flake * 0.9 * clamp(strength * 1.5, 0.0, 1.0), 0.0, 1.0);
+                return half4(col * alpha, alpha);
+            }
+        """
     }
 }
