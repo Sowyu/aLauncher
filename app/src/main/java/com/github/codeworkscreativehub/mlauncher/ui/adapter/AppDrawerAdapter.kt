@@ -68,7 +68,7 @@ class AppDrawerAdapter(
     private val appInfoListener: (AppListItem) -> Unit
 ) : RecyclerView.Adapter<AppDrawerAdapter.ViewHolder>(), Filterable {
 
-    private lateinit var prefs: Prefs
+    private val prefs = Prefs(context)
     private var appFilter = createAppFilter()
     private var contextMenu: AppContextMenu? = null
 
@@ -77,7 +77,7 @@ class AppDrawerAdapter(
     var appsList: MutableList<AppListItem> = mutableListOf()
     var appFilteredList: MutableList<AppListItem> = mutableListOf()
     private lateinit var binding: AdapterAppDrawerBinding
-    private lateinit var biometricHelper: BiometricHelper
+    private val biometricHelper by lazy { BiometricHelper(fragment.requireActivity()) }
 
     // Add icon cache
     private val iconCache = ConcurrentHashMap<String, Drawable>()
@@ -97,8 +97,6 @@ class AppDrawerAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         binding = AdapterAppDrawerBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        prefs = Prefs(parent.context)
-        biometricHelper = BiometricHelper(fragment.requireActivity())
         val fontColor = prefs.appColor
         binding.appTitle.setTextColor(fontColor)
 
@@ -119,11 +117,11 @@ class AppDrawerAdapter(
             return
         }
 
-        val appModel = appFilteredList[holder.absoluteAdapterPosition]
+        val appModel = appFilteredList[holder.bindingAdapterPosition]
         AppLogger.d("AppListDebug", "🔧 Binding position=$position, label=${appModel.activityLabel}, package=${appModel.activityPackage}")
 
         // Pass icon cache and loading scope to bind
-        holder.bind(flag, gravity, appModel, appClickListener, appInfoListener, appDeleteListener, iconCache, iconLoadingScope, prefs, searching)
+        holder.bind(gravity, appModel, iconCache, iconLoadingScope, prefs, searching)
 
         holder.appSaveRename.setOnClickListener {
             val currentText = holder.appRenameEdit.text.toString().trim()
@@ -140,23 +138,23 @@ class AppDrawerAdapter(
                 }
             }
 
-            notifyItemChanged(holder.absoluteAdapterPosition)
-            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.absoluteAdapterPosition}")
+            notifyItemChanged(holder.bindingAdapterPosition)
+            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.bindingAdapterPosition}")
         }
 
         holder.appSaveCancel.setOnClickListener {
             AppLogger.d("AppListDebug", "✏️ Cancel rename for ${appModel.activityPackage}")
 
-            notifyItemChanged(holder.absoluteAdapterPosition)
-            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.absoluteAdapterPosition}")
+            notifyItemChanged(holder.bindingAdapterPosition)
+            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.bindingAdapterPosition}")
         }
 
         holder.appSaveTag.setOnClickListener {
             val name = holder.appTagEdit.text.toString().trim()
             AppLogger.d("AppListDebug", "✏️ Tagging ${appModel.activityPackage} to $name")
             appModel.customTag = name
-            notifyItemChanged(holder.absoluteAdapterPosition)
-            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.absoluteAdapterPosition}")
+            notifyItemChanged(holder.bindingAdapterPosition)
+            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.bindingAdapterPosition}")
             appTagListener(appModel.activityPackage, appModel.customTag, appModel.user)
         }
 
@@ -290,12 +288,8 @@ class AppDrawerAdapter(
 
         @SuppressLint("RtlHardcoded", "NewApi")
         fun bind(
-            flag: AppDrawerFlag,
             appLabelGravity: Int,
             appListItem: AppListItem,
-            appClickListener: (AppListItem) -> Unit,
-            appInfoListener: (AppListItem) -> Unit,
-            appDeleteListener: (AppListItem) -> Unit,
             iconCache: ConcurrentHashMap<String, Drawable>,
             iconLoadingScope: CoroutineScope,
             prefs: Prefs,
@@ -368,115 +362,29 @@ class AppDrawerAdapter(
                 setOnClickListener { appClickListener(appListItem) }
                 setOnLongClickListener {
                     if (flag == AppDrawerFlag.LaunchApp || flag == AppDrawerFlag.HiddenApps) {
-                        showContextMenu(appListItem, flag, prefs)
+                        showContextMenu(appListItem, appTitle, gravity, this@ViewHolder)
                     }
                     true
                 }
             }
         }
 
-        private fun showContextMenu(app: AppListItem, flag: AppDrawerFlag, prefs: Prefs) {
-            contextMenu?.dismiss(animate = false)
-            val host = (fragment as? AppDrawerFragment)?.contextMenuHost() ?: return
-            val packageName = app.activityPackage
-            val defaults = "0011111"
-            val flags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", defaults)
-            fun enabled(i: Int) = flags.getOrElse(i) { defaults[i] == '1' }
-
-            val isLocked = prefs.lockedApps.contains(packageName)
-            val isPinned = prefs.pinnedApps.contains(packageName)
-            val isHidden = flag == AppDrawerFlag.HiddenApps
-            val actions = buildList {
-                if (enabled(0)) add(
-                    AppContextMenu.Action(
-                        if (isPinned) R.drawable.pin_off else R.drawable.pin,
-                        getLocalizedString(if (isPinned) R.string.unpin else R.string.pin)
-                    ) {
-                        val updated = prefs.pinnedApps.toMutableSet()
-                        if (isPinned) updated.remove(packageName) else updated.add(packageName)
-                        prefs.pinnedApps = updated
-                    })
-                if (enabled(1)) add(
-                    AppContextMenu.Action(
-                        if (isLocked) R.drawable.padlock else R.drawable.padlock_off,
-                        getLocalizedString(if (isLocked) R.string.unlock else R.string.lock)
-                    ) { toggleLock(app, prefs) })
-                if (enabled(2)) add(
-                    AppContextMenu.Action(
-                        if (isHidden) R.drawable.visibility else R.drawable.visibility_off,
-                        getLocalizedString(if (isHidden) R.string.show else R.string.hide)
-                    ) { hideApp(app) })
-                if (enabled(3)) add(AppContextMenu.Action(R.drawable.ic_rename, getLocalizedString(R.string.rename)) {
-                    appRenameEdit.hint = app.activityLabel
-                    openInlineEditor(appRenameLayout, appRenameEdit)
-                })
-                if (enabled(4)) add(AppContextMenu.Action(R.drawable.ic_tag, getLocalizedString(R.string.tag)) {
-                    appTagEdit.hint = app.activityLabel
-                    openInlineEditor(appTagLayout, appTagEdit)
-                })
-                if (enabled(5)) add(AppContextMenu.Action(R.drawable.ic_info, getLocalizedString(R.string.info)) {
-                    appInfoListener(app)
-                })
-                if (enabled(6)) add(
-                    AppContextMenu.Action(
-                        R.drawable.ic_delete,
-                        getLocalizedString(R.string.app_menu_uninstall),
-                        destructive = true,
-                        dimmed = context.isSystemApp(packageName)
-                    ) { appDeleteListener(app) })
-            }
-            if (actions.isEmpty()) return
-
-            val menu = AppContextMenu(host, appTitle, gravity, actions) { contextMenu = null }
-            contextMenu = menu
-            menu.show()
-        }
-
-        private fun openInlineEditor(layout: View, edit: EditText) {
+        fun openInlineEditor(layout: View, edit: EditText) {
             layout.isVisible = true
             editingPosition = bindingAdapterPosition
             edit.imeOptions = EditorInfo.IME_ACTION_DONE
             edit.showKeyboard()
         }
 
-        private fun hideApp(app: AppListItem) {
-            val pos = bindingAdapterPosition
-            if (pos == RecyclerView.NO_POSITION) return
-            AppLogger.d("AppListDebug", "❌ Hide clicked for ${app.activityLabel} (${app.activityPackage})")
-            appFilteredList.removeAt(pos)
-            appsList.remove(app)
-            notifyItemRemoved(pos)
-            appHideListener(flag, app)
+        fun openRename(app: AppListItem) {
+            appRenameEdit.hint = app.activityLabel
+            openInlineEditor(appRenameLayout, appRenameEdit)
         }
 
-        private fun toggleLock(app: AppListItem, prefs: Prefs) {
-            val packageName = app.activityPackage
-            val locked = prefs.lockedApps.toMutableSet()
-            if (!locked.contains(packageName)) {
-                locked.add(packageName)
-                prefs.lockedApps = locked
-                return
-            }
-            // Unlocking needs the user to authenticate first
-            biometricHelper.startBiometricAuth(app, object : BiometricHelper.CallbackApp {
-                override fun onAuthenticationSucceeded(appListItem: AppListItem) {
-                    prefs.lockedApps = prefs.lockedApps.toMutableSet().apply { remove(packageName) }
-                }
-
-                override fun onAuthenticationFailed() {
-                    AppLogger.e("Authentication", getLocalizedString(R.string.text_authentication_failed))
-                }
-
-                override fun onAuthenticationError(errorCode: Int, errorMessage: CharSequence?) {
-                    val msg = when (errorCode) {
-                        BiometricPrompt.ERROR_USER_CANCELED -> getLocalizedString(R.string.text_authentication_cancel)
-                        else -> getLocalizedString(R.string.text_authentication_error).format(errorMessage, errorCode)
-                    }
-                    AppLogger.e("Authentication", msg)
-                }
-            })
+        fun openTag(app: AppListItem) {
+            appTagEdit.hint = app.activityLabel
+            openInlineEditor(appTagLayout, appTagEdit)
         }
-
 
         // Helper to set icon on appTitle with correct size and alignment
         private fun setAppTitleIcon(appTitle: TextView, icon: Drawable?, prefs: Prefs, force: Boolean = false) {
@@ -515,6 +423,119 @@ class AppDrawerAdapter(
         // Clear icon when view is recycled
         fun clearIcon() {
             appTitle.setCompoundDrawables(null, null, null, null)
+        }
+    }
+
+    /**
+     * The frosted long-press pill for [app], anchored to [anchor]. [row] is the list row when the
+     * press came from the list; rename and tag edit inline in that row, so they need it.
+     */
+    fun showContextMenu(app: AppListItem, anchor: View, anchorGravity: Int, row: ViewHolder?) {
+        contextMenu?.dismiss(animate = false)
+        val drawer = fragment as? AppDrawerFragment ?: return
+        val host = drawer.contextMenuHost() ?: return
+        val packageName = app.activityPackage
+        // Index 0 was mLauncher's pin toggle; the pinned row's Pin is always offered instead
+        val defaults = "0011111"
+        val flags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", defaults)
+        fun enabled(i: Int) = flags.getOrElse(i) { defaults[i] == '1' }
+
+        val isLocked = prefs.lockedApps.contains(packageName)
+        val isHidden = flag == AppDrawerFlag.HiddenApps
+        val actions = buildList {
+            if (flag == AppDrawerFlag.LaunchApp) {
+                val isPinned = drawer.isPinned(app)
+                add(
+                    AppContextMenu.Action(
+                        if (isPinned) R.drawable.pin_off else R.drawable.pin,
+                        getLocalizedString(if (isPinned) R.string.unpin else R.string.pin)
+                    ) { drawer.togglePin(app) })
+            }
+            if (enabled(1)) add(
+                AppContextMenu.Action(
+                    if (isLocked) R.drawable.padlock else R.drawable.padlock_off,
+                    getLocalizedString(if (isLocked) R.string.unlock else R.string.lock)
+                ) { toggleLock(app) })
+            if (enabled(2)) add(
+                AppContextMenu.Action(
+                    if (isHidden) R.drawable.visibility else R.drawable.visibility_off,
+                    getLocalizedString(if (isHidden) R.string.show else R.string.hide)
+                ) { hideApp(app) })
+            if (row != null && enabled(3)) add(AppContextMenu.Action(R.drawable.ic_rename, getLocalizedString(R.string.rename)) {
+                row.openRename(app)
+            })
+            if (row != null && enabled(4)) add(AppContextMenu.Action(R.drawable.ic_tag, getLocalizedString(R.string.tag)) {
+                row.openTag(app)
+            })
+            if (enabled(5)) add(AppContextMenu.Action(R.drawable.ic_info, getLocalizedString(R.string.info)) {
+                appInfoListener(app)
+            })
+            if (enabled(6)) add(
+                AppContextMenu.Action(
+                    R.drawable.ic_delete,
+                    getLocalizedString(R.string.app_menu_uninstall),
+                    destructive = true,
+                    dimmed = context.isSystemApp(packageName)
+                ) { appDeleteListener(app) })
+        }
+        if (actions.isEmpty()) return
+
+        val menu = AppContextMenu(host, anchor, anchorGravity, actions) { contextMenu = null }
+        contextMenu = menu
+        menu.show()
+    }
+
+    private fun hideApp(app: AppListItem) {
+        AppLogger.d("AppListDebug", "❌ Hide clicked for ${app.activityLabel} (${app.activityPackage})")
+        val pos = appFilteredList.indexOf(app)
+        if (pos >= 0) {
+            appFilteredList.removeAt(pos)
+            notifyItemRemoved(pos)
+        }
+        appsList.remove(app)
+        appHideListener(flag, app)
+    }
+
+    private fun toggleLock(app: AppListItem) {
+        val packageName = app.activityPackage
+        val locked = prefs.lockedApps.toMutableSet()
+        if (!locked.contains(packageName)) {
+            locked.add(packageName)
+            prefs.lockedApps = locked
+            return
+        }
+        // Unlocking needs the user to authenticate first
+        biometricHelper.startBiometricAuth(app, object : BiometricHelper.CallbackApp {
+            override fun onAuthenticationSucceeded(appListItem: AppListItem) {
+                prefs.lockedApps = prefs.lockedApps.toMutableSet().apply { remove(packageName) }
+            }
+
+            override fun onAuthenticationFailed() {
+                AppLogger.e("Authentication", getLocalizedString(R.string.text_authentication_failed))
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errorMessage: CharSequence?) {
+                val msg = when (errorCode) {
+                    BiometricPrompt.ERROR_USER_CANCELED -> getLocalizedString(R.string.text_authentication_cancel)
+                    else -> getLocalizedString(R.string.text_authentication_error).format(errorMessage, errorCode)
+                }
+                AppLogger.e("Authentication", msg)
+            }
+        })
+    }
+
+    /** Same icon as the list row (icon pack, then generated, then system), sharing its cache. */
+    fun bindIcon(app: AppListItem, target: ImageView) {
+        val key = app.activityPackage
+        target.tag = key
+        // A drawable can only have one set of bounds; the list row's TextView owns the cached one
+        fun show(icon: Drawable) = target.setImageDrawable(icon.constantState?.newDrawable(context.resources)?.mutate() ?: icon)
+        iconCache[key]?.let { show(it); return }
+        target.setImageDrawable(AppCompatResources.getDrawable(context, R.drawable.ic_default_app))
+        iconLoadingScope.launch {
+            val icon = loadIcon(app)
+            iconCache[key] = icon
+            if (target.tag == key) show(icon)
         }
     }
 

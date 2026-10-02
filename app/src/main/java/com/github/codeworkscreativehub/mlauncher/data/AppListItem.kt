@@ -43,6 +43,9 @@ data class AppListItem(
 
     override fun compareTo(other: AppListItem): Int =
         collationKey.compareTo(other.collationKey)
+
+    /** Identifies one launcher activity for one user; same format as the hidden-apps keys. */
+    val pinKey: String get() = "$activityPackage|$activityClass|${user.hashCode()}"
 }
 
 enum class AppCategory {

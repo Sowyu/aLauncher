@@ -90,6 +90,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.updateHomeWidget
 import com.github.codeworkscreativehub.mlauncher.helper.utils.AppReloader
 import com.github.codeworkscreativehub.mlauncher.style.SettingsTheme
 import com.github.codeworkscreativehub.mlauncher.style.SettingsType
+import com.github.codeworkscreativehub.mlauncher.ui.adapter.PinnedAppsAdapter
 import com.github.codeworkscreativehub.mlauncher.ui.compose.ActionsDialog
 import com.github.codeworkscreativehub.mlauncher.ui.compose.CardGap
 import com.github.codeworkscreativehub.mlauncher.ui.compose.CardNote
@@ -152,7 +153,8 @@ private enum class Page(
             R.string.st_web_search_button, R.string.st_fuzzy, R.string.st_search_from_start,
             R.string.st_fuzzy_strength, R.string.st_auto_open, R.string.st_open_on_enter, R.string.st_az_sidebar,
             R.string.st_drawer_alignment, R.string.st_drawer_icons, R.string.st_long_press_menu,
-            R.string.st_hidden_apps, R.string.st_drawer_background, R.string.st_blur,
+            R.string.st_hidden_apps, R.string.st_pinned_apps, R.string.st_clear_pinned,
+            R.string.st_drawer_background, R.string.st_blur,
         )
     ),
     Gestures(
@@ -596,6 +598,7 @@ class SettingsFragment : BaseFragment() {
         var dateAlignment by remember { mutableStateOf(prefs.dateAlignment) }
         val gravityLabels = Constants.Gravity.entries.map { it.string() }
         val sizeRange = Constants.MIN_CLOCK_DATE_SIZE.toFloat()..Constants.MAX_CLOCK_DATE_SIZE.toFloat()
+        val clockSizeRange = Constants.MIN_CLOCK_DATE_SIZE.toFloat()..Constants.MAX_CLOCK_SIZE.toFloat()
 
         SectionHeader(getLocalizedString(R.string.st_sec_clock))
         SettingsCard {
@@ -611,7 +614,7 @@ class SettingsFragment : BaseFragment() {
             SliderRow(
                 title = getLocalizedString(R.string.st_clock_size),
                 value = clockSize.toFloat(),
-                range = sizeRange,
+                range = clockSizeRange,
                 format = { it.roundToInt().toString() },
                 onCommit = {
                     clockSize = it.roundToInt()
@@ -895,6 +898,7 @@ class SettingsFragment : BaseFragment() {
         var alignment by remember { mutableStateOf(prefs.drawerAlignment) }
         var iconPack by remember(resumeTick) { mutableStateOf(prefs.iconPackAppList) }
         var blur by remember { mutableIntStateOf(prefs.drawerBlurRadius) }
+        var pinnedCount by remember(resumeTick) { mutableIntStateOf(prefs.pinnedRow.size) }
         val gravityLabels = Constants.Gravity.entries.map { it.string() }
 
         var bgRefresh by remember { mutableIntStateOf(0) }
@@ -1016,11 +1020,34 @@ class SettingsFragment : BaseFragment() {
                 title = getLocalizedString(R.string.st_long_press_menu),
                 key = "CONTEXT_MENU_FLAGS",
                 default = "0011111",
+                // Flag 0 was mLauncher's pin toggle; Pin for the pinned row is always in the menu
+                firstIndex = 1,
                 labels = listOf(
-                    R.string.pin, R.string.lock, R.string.hide, R.string.rename,
+                    R.string.lock, R.string.hide, R.string.rename,
                     R.string.tag, R.string.info, R.string.delete,
                 ).map { getLocalizedString(it) }
             )
+            SelectRow(
+                title = getLocalizedString(R.string.st_pinned_apps),
+                subtitle = if (pinnedCount == 0) getLocalizedString(R.string.st_pinned_apps_none)
+                else getLocalizedString(R.string.st_pinned_apps_count).format(pinnedCount, PinnedAppsAdapter.MAX),
+                onClick = null
+            )
+            if (pinnedCount > 0) {
+                SelectRow(title = getLocalizedString(R.string.st_clear_pinned)) {
+                    dialog = {
+                        ConfirmDialog(
+                            title = getLocalizedString(R.string.st_clear_pinned),
+                            message = getLocalizedString(R.string.st_clear_pinned_confirm),
+                            confirmLabel = getLocalizedString(R.string.st_clear_pinned),
+                            onDismiss = { dialog = null }
+                        ) {
+                            prefs.pinnedRow = emptyList()
+                            pinnedCount = 0
+                        }
+                    }
+                }
+            }
             SelectRow(
                 title = getLocalizedString(R.string.st_hidden_apps),
                 subtitle = getLocalizedString(R.string.st_hidden_apps_sub),
@@ -1396,11 +1423,11 @@ class SettingsFragment : BaseFragment() {
 
     /** Row showing which of several on/off flags are set, with a checkbox dialog to change them. */
     @Composable
-    private fun FlagsRow(title: String, key: String, default: String, labels: List<String>) {
+    private fun FlagsRow(title: String, key: String, default: String, labels: List<String>, firstIndex: Int = 0) {
         val flags = remember {
             mutableStateListOf<Boolean>().apply {
                 val saved = prefs.getMenuFlags(key, default)
-                addAll(List(labels.size) { saved.getOrElse(it) { false } })
+                addAll(List(labels.size) { saved.getOrElse(firstIndex + it) { false } })
             }
         }
         val summary = labels.zip(flags)
@@ -1417,7 +1444,8 @@ class SettingsFragment : BaseFragment() {
                     onDismiss = { dialog = null }
                 ) { index, value ->
                     flags[index] = value
-                    prefs.saveMenuFlags(key, flags.toList())
+                    val skipped = prefs.getMenuFlags(key, default).take(firstIndex)
+                    prefs.saveMenuFlags(key, List(firstIndex) { skipped.getOrElse(it) { false } } + flags)
                 }
             }
         }

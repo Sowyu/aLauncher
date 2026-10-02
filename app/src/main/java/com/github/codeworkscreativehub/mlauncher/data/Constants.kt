@@ -31,6 +31,7 @@ object Constants {
 
     const val MIN_CLOCK_DATE_SIZE = 10
     const val MAX_CLOCK_DATE_SIZE = 120
+    const val MAX_CLOCK_SIZE = 220
 
     const val MIN_TEXT_PADDING = 0
     const val MAX_TEXT_PADDING = 50

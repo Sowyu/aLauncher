@@ -515,6 +515,14 @@ class Prefs(val context: Context) {
         get() = prefsNormal.getStringSet(PINNED_APPS, emptySet()) as Set<String>
         set(value) = prefsNormal.edit { putStringSet(PINNED_APPS, value) }
 
+    /** The drawer's pinned icon row, in pin order. Keys are "package|class|userHash" ([AppListItem.pinKey]). */
+    var pinnedRow: List<String>
+        get() = prefsNormal.getString(PINNED_ROW, null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+        set(value) = prefsNormal.edit { putString(PINNED_ROW, value.joinToString("\n")) }
+
+    /** False until the pinned row is first written; the old package-only pins migrate once. */
+    val hasPinnedRow: Boolean get() = prefsNormal.contains(PINNED_ROW)
+
     var enableExpertOptions: Boolean
         get() = getSetting(EXPERT_OPTIONS, false)
         set(value) = prefsNormal.edit { putBoolean(EXPERT_OPTIONS, value) }

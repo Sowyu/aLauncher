@@ -190,4 +190,9 @@
     <string name="st_sticker_holo_sub">Foil shimmer that follows how you tilt the phone</string>
     <string name="st_sticker_holo_intensity">Holo intensity</string>
     <string name="st_sticker_holo_sensitivity">Motion sensitivity</string>
+    <string name="st_pinned_apps">Pinned apps</string>
+    <string name="st_pinned_apps_none">Long-press an app in the drawer and tap Pin</string>
+    <string name="st_pinned_apps_count">%1$d of %2$d pinned</string>
+    <string name="st_clear_pinned">Clear pinned</string>
+    <string name="st_clear_pinned_confirm">Remove every app from the pinned row?</string>
 </resources>

@@ -34,6 +34,7 @@ import androidx.core.view.updatePadding
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.codeworkscreativehub.common.AppLogger
@@ -56,6 +57,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
+import com.github.codeworkscreativehub.mlauncher.ui.adapter.PinnedAppsAdapter
 import com.github.codeworkscreativehub.mlauncher.ui.components.AppContextMenu
 import com.github.codeworkscreativehub.mlauncher.ui.components.FrostedPillDrawable
 import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
@@ -91,6 +93,10 @@ class AppDrawerFragment : BaseFragment() {
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
     private lateinit var appsAdapter: AppDrawerAdapter
+    private lateinit var pinnedAdapter: PinnedAppsAdapter
+
+    /** Rows above the first app: the pinned row when it shows. */
+    private val headerCount: Int get() = if (::pinnedAdapter.isInitialized) pinnedAdapter.itemCount else 0
 
     private var _binding: FragmentAppDrawerBinding? = null
     private val binding get() = _binding!!
@@ -150,7 +156,7 @@ class AppDrawerFragment : BaseFragment() {
 
         viewModel.appScrollMap.observe(viewLifecycleOwner) { appMap ->
             binding.azSidebar.onLetterSelected = { section ->
-                appMap[section]?.let { index -> jumpToSection(binding.appsRecyclerView, index) }
+                appMap[section]?.let { index -> jumpToSection(binding.appsRecyclerView, index + headerCount) }
             }
         }
 
@@ -174,6 +180,13 @@ class AppDrawerFragment : BaseFragment() {
         )
         appsAdapter = appAdapter
 
+        pinnedAdapter = PinnedAppsAdapter(
+            onClick = appClickListener(viewModel, flag, n),
+            onLongClick = { app, slot -> appAdapter.showContextMenu(app, slot, Gravity.CENTER_HORIZONTAL, null) },
+            bindIcon = appAdapter::bindIcon,
+            labelOf = { app -> prefs.getAppAlias(app.activityPackage).takeIf { it.isNotBlank() } ?: app.activityLabel },
+        )
+
         val searchTextView = binding.search.findViewById<TextView>(R.id.search_src_text)
         // The pill is 56dp tall; very large list text sizes don't fit in it
         searchTextView.textSize = prefs.appSize.toFloat().coerceAtMost(20f)
@@ -189,7 +202,8 @@ class AppDrawerFragment : BaseFragment() {
             itemAnimator = null
             // Rows fade out exactly where they meet the status bar and the search pill
             edgeFadeLength = (28 * resources.displayMetrics.density).toInt()
-            adapter = appAdapter
+            // The pinned row is a header that scrolls with the list
+            adapter = ConcatAdapter(pinnedAdapter, appAdapter)
         }
 
         // Search results read top-down from the top of the list, best match first
@@ -218,7 +232,7 @@ class AppDrawerFragment : BaseFragment() {
                     else -> (firstVisible + lastVisible) / 2
                 }.coerceIn(0, itemCount - 1)
 
-                val item = appAdapter.getItemAt(position) ?: return
+                val item = appAdapter.getItemAt((position - headerCount).coerceAtLeast(0)) ?: return
 
                 val sectionLetter = when (item.category) {
                     AppCategory.PINNED -> "★"
@@ -306,6 +320,7 @@ class AppDrawerFragment : BaseFragment() {
                 val searching = !newText.isNullOrBlank()
                 // Section letters only make sense for the full, alphabetical list
                 binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
+                showingPinned { pinnedAdapter.setHidden(searching) }
 
                 newText?.let { appAdapter.search(it.trim()) }
                 return false
@@ -505,6 +520,7 @@ class AppDrawerFragment : BaseFragment() {
     @SuppressLint("NotifyDataSetChanged")
     fun onDrawerOpening() {
         if (::viewModel.isInitialized) viewModel.getAppList()
+        refreshPinnedRow()
         val rv = _binding?.appsRecyclerView ?: return
         // The list was filled while the drawer was hidden; make sure its rows are laid out now
         if (::appsAdapter.isInitialized && appsAdapter.itemCount > 0 && rv.childCount == 0) {
@@ -552,6 +568,52 @@ class AppDrawerFragment : BaseFragment() {
             frosted = DrawerBackground.frostedFor(shownBackground),
             backDispatcher = requireActivity().onBackPressedDispatcher,
         )
+    }
+
+    // ------------------------------------------------------------ pinned row
+
+    fun isPinned(app: AppListItem) = app.pinKey in prefs.pinnedRow
+
+    fun togglePin(app: AppListItem) {
+        val keys = prefs.pinnedRow.toMutableList()
+        if (!keys.remove(app.pinKey)) {
+            if (::pinnedAdapter.isInitialized && pinnedAdapter.apps.size >= PinnedAppsAdapter.MAX) {
+                showShortToast(getLocalizedString(R.string.pinned_row_full))
+                return
+            }
+            keys.add(app.pinKey)
+        }
+        prefs.pinnedRow = keys
+        refreshPinnedRow()
+    }
+
+    /** Re-reads the pins against the installed apps. Only the main launcher drawer has the row. */
+    private fun refreshPinnedRow() {
+        if (_binding == null || !::pinnedAdapter.isInitialized || flag != AppDrawerFlag.LaunchApp) return
+        val raw = viewModel.appList.value.orEmpty()
+        if (raw.isEmpty()) return
+        migrateOldPins(raw)
+        val hidden = prefs.hiddenApps
+        val byKey = raw.filterNot { isHidden(it, hidden) }.associateBy { it.pinKey }
+        val pinned = prefs.pinnedRow.mapNotNull { byKey[it] }
+        showingPinned { pinnedAdapter.submit(pinned) }
+    }
+
+    /** mLauncher pinned by package name into a ★ section; those pins move to the row once. */
+    private fun migrateOldPins(raw: List<AppListItem>) {
+        if (prefs.hasPinnedRow) return
+        val old = prefs.pinnedApps
+        prefs.pinnedRow = old.mapNotNull { pkg -> raw.firstOrNull { it.activityPackage == pkg }?.pinKey }
+            .distinct().take(PinnedAppsAdapter.MAX)
+        if (old.isNotEmpty()) prefs.pinnedApps = emptySet()
+    }
+
+    /** A header inserted above a list sitting at the top would land off-screen; keep it in view. */
+    private fun showingPinned(change: () -> Unit) {
+        val rv = _binding?.appsRecyclerView
+        val atTop = rv != null && !rv.canScrollVertically(-1)
+        change()
+        if (atTop) rv?.scrollToPosition(0)
     }
 
     // ------------------------------------------------------------ background
@@ -639,6 +701,7 @@ class AppDrawerFragment : BaseFragment() {
         // Everything else
         viewModel.appList.observe(viewLifecycleOwner) { rawAppList ->
             if (flag == AppDrawerFlag.HiddenApps || rawAppList == null) return@observe
+            refreshPinnedRow()
             populateFromRaw(rawAppList, appAdapter, force = false)
         }
 
@@ -797,6 +860,7 @@ class AppDrawerFragment : BaseFragment() {
         }
 
         prefs.hiddenApps = newSet
+        refreshPinnedRow()
 
         if (newSet.isEmpty() && flag == AppDrawerFlag.HiddenApps) dismiss(toHome = false)
     }

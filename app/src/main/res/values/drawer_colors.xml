@@ -16,4 +16,8 @@
     <color name="app_menu_ripple">#298E4A8A</color>
     <color name="app_menu_highlight">#1F8E4A8A</color>
     <color name="app_menu_scrim">#1F000000</color>
+
+    <!-- Pinned icon row at the top of the drawer -->
+    <color name="drawer_pinned_label">#6B5C6B</color>
+    <color name="drawer_pinned_divider">#E6DCE6</color>
 </resources>

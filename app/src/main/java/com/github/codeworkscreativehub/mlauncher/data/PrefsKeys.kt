@@ -86,6 +86,7 @@ internal const val DOUBLE_TAP_ACTION = "DOUBLE_TAP_ACTION"
 internal const val HIDDEN_APPS = "HIDDEN_APPS"
 internal const val LOCKED_APPS = "LOCKED_APPS"
 internal const val PINNED_APPS = "PINNED_APPS"
+internal const val PINNED_ROW = "PINNED_ROW"
 
 // Search / Fonts / App Info
 internal const val SEARCH_ENGINE = "SEARCH_ENGINE"
