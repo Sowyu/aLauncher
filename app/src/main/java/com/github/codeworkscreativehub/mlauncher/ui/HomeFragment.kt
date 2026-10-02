@@ -157,6 +157,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onResume() {
         super.onResume()
+        _binding?.homeAppsLayout?.post { fitRows() }
+
         // Safety net: if nothing is animating and the drawer isn't meant to be open, home must be visible
         if (drawerAnimator?.isRunning != true && !drawerTargetOpen && drawerProgress != 0f) applyDrawerProgress(0f)
         updateStickerActive()
@@ -191,7 +193,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.timeDateLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> keepListBelowClock() }
         // Re-fit whenever the list itself is laid out (rows added, gap or size changed); idempotent
         binding.homeAppsLayout.addOnLayoutChangeListener { v, _, t, _, b, _, ot, _, ob ->
-            if (b - t != ob - ot || (v as ViewGroup).childCount != lastFitCount) v.post { fitRows() }
+            // fitRows only changes things that differ, so running it on every layout can't loop;
+            // returning home re-applies the default row padding, which this catches
+            v.post { fitRows() }
         }
         updateClockSticker()
         refreshIconsIfStale()
@@ -269,7 +273,17 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         return maxOf(fm.descent - fm.ascent, tv.compoundDrawables.filterNotNull().maxOfOrNull { it.bounds.height() } ?: 0)
     }
 
-    private fun content(v: View): Int = (v.height - v.paddingTop - v.paddingBottom).coerceAtLeast(0)
+    /** Height of a row without its padding. Uses the text layout, which doesn't depend on
+     *  padding, so it's right even before the row is re-measured after a padding change. */
+    private fun content(v: View): Int {
+        val tv = v as? android.widget.TextView
+        val textH = tv?.layout?.height
+        if (tv != null && textH != null && textH > 0) {
+            val icon = tv.compoundDrawables.filterNotNull().maxOfOrNull { it.bounds.height() } ?: 0
+            return maxOf(textH, icon)
+        }
+        return (v.height - v.paddingTop - v.paddingBottom).coerceAtLeast(0)
+    }
 
     private fun rowMinHeight(v: View): Int = (v as? android.widget.TextView)?.minHeight ?: v.minimumHeight
 
