@@ -17,7 +17,7 @@ class DrawerSettleTest {
 
     @Test
     fun hardFlingFromClosedGoesFull() {
-        assertEquals(1f, settleTarget(-9000f, 0.3f, fling, 0f))
+        assertEquals(SHEET_HALF, settleTarget(-9000f, 0.3f, fling, 0f))  // even a hard fling stops at half
     }
 
     @Test

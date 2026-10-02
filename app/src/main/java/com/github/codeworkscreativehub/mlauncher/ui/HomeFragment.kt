@@ -1618,7 +1618,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     override fun onDrawerDrag(dy: Float) {
-        applyDrawerProgress(dragStartProgress - dy / drawerTravel())
+        var p = dragStartProgress - dy / drawerTravel()
+        // Opening from home always stops at half, however far or hard you swipe
+        if (dragStartProgress < SHEET_HALF - 0.001f) p = p.coerceAtMost(SHEET_HALF)
+        applyDrawerProgress(p)
     }
 
     override fun onDrawerDragEnd(velocityY: Float) {
@@ -1716,7 +1719,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         internal fun settleTarget(velocityY: Float, progress: Float, flingPx: Float, startProgress: Float): Float {
             val p = progress.coerceIn(0f, 1f)
             if (velocityY < -flingPx) {
-                if (startProgress < 0.01f && velocityY < -3f * flingPx) return 1f
+                // Opening from below half never skips past half
+                if (startProgress < SHEET_HALF - 0.001f) return SHEET_HALF
                 return STOPS.firstOrNull { it > p + 0.02f } ?: 1f
             }
             if (velocityY > flingPx) return STOPS.lastOrNull { it < p - 0.02f } ?: 0f
@@ -1724,6 +1728,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             val lo = STOPS.lastOrNull { it <= p } ?: 0f
             if (hi == lo) return p
             val frac = (p - lo) / (hi - lo)
+            if (startProgress < SHEET_HALF - 0.001f && hi > SHEET_HALF) return SHEET_HALF
             return when {
                 p > startProgress -> if (frac > 0.35f) hi else lo
                 p < startProgress -> if (frac < 0.65f) lo else hi
