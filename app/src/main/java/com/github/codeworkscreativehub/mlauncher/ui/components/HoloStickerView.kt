@@ -174,9 +174,9 @@ class HoloStickerView @JvmOverloads constructor(
         }
         val tx = (roll - baseX).coerceIn(-TILT_RANGE, TILT_RANGE)
         val ty = (pitch - baseY).coerceIn(-TILT_RANGE, TILT_RANGE)
-        tiltX += (tx - tiltX) * 0.25f
-        tiltY += (ty - tiltY) * 0.25f
-        if (abs(tiltX - lastDrawX) > 0.05f || abs(tiltY - lastDrawY) > 0.05f) {
+        tiltX += (tx - tiltX) * 0.35f
+        tiltY += (ty - tiltY) * 0.35f
+        if (abs(tiltX - lastDrawX) > 0.03f || abs(tiltY - lastDrawY) > 0.03f) {
             lastDrawX = tiltX
             lastDrawY = tiltY
             scheduleFrame()
@@ -436,7 +436,7 @@ class HoloStickerView @JvmOverloads constructor(
     }
 
     private companion object {
-        const val TILT_RANGE = 15f
+        const val TILT_RANGE = 8f
 
         // Foil model: a diffraction foil whose grating direction is fixed per point (gently
         // warped across the card). The diffracted colour at a point depends on the angle
@@ -481,7 +481,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // colour = fixed structure + view angle. The structure never moves.
                 float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
                 float2 g = float2(cos(ang), sin(ang));
-                float phase = dot(uv, g) * 1.6 + dot(L, g) * 1.4 + noise(uv * 5.0) * 0.15;
+                float phase = dot(uv, g) * 1.6 + dot(L, g) * 2.6 + noise(uv * 5.0) * 0.15;
                 half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
 
                 // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
@@ -489,7 +489,7 @@ class HoloStickerView @JvmOverloads constructor(
                 float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
 
                 // Moving reflection of the light; foil is brightest where it catches
-                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.75;
+                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 1.1;
                 float2 dh = uv - hc;
                 float sheen = exp(-dot(dh, dh) * 2.4);
                 float bright = 0.45 + 0.55 * sheen;
@@ -500,7 +500,7 @@ class HoloStickerView @JvmOverloads constructor(
                 float2 f = fract(cellUv) - 0.5;
                 float r = hash(cell);
                 float2 facet = float2(hash(cell + 3.1), hash(cell + 7.7)) * 2.2 - 1.1;
-                float match = clamp(1.0 - length(L - facet) * 1.8, 0.0, 1.0);
+                float match = clamp(1.0 - length(L - facet) * 1.4, 0.0, 1.0);
                 float flake = step(0.7, r) * smoothstep(0.32, 0.0, length(f)) * match * match;
 
                 half3 foil = rb * relief * bright;
