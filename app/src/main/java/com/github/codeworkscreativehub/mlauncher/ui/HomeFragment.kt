@@ -320,7 +320,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             ((clock.width - clock.paddingLeft - clock.paddingRight) - clock.paint.measureText(clock.text.toString())).coerceAtLeast(0f) *
             (if (clock.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK == android.view.Gravity.CENTER_HORIZONTAL) 0.5f else 0f)
         val cx = textRight
-        val cy = digitsTop + digitsHeight
+        val cy = digitsTop + digitsHeight * 0.72f
         val margin = 8 * resources.displayMetrics.density
         val maxX = b.mainLayout.width - size - margin
         sticker.translationX = (cx - size / 2f).coerceIn(margin, maxOf(margin, maxX))

@@ -582,7 +582,7 @@ class AppDrawerFragment : BaseFragment() {
             )
             // The search pill lines up with the list content on the open side (20dp) and leaves
             // the same kind of gap before the sidebar strip (14dp margin + 32dp strip + 12dp)
-            val clear = (38 * density).toInt()  // ends ~8dp before the letters themselves
+            val clear = (54 * density).toInt()  // gap to the letters equals the 20dp gap on the other side
             val normal = (20 * density).toInt()
             (binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams).apply {
                 marginStart = if (sidebarOnEnd) normal else clear
