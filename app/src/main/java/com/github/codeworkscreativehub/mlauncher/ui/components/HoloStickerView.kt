@@ -523,25 +523,21 @@ class HoloStickerView @JvmOverloads constructor(
                 float shardLum = 0.92 + 0.25 * hash(bestCell + 9.1);
                 float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
                 float align = smoothstep(1.05, 0.25, length(L - facet * 0.8));
-                float facing = 0.7 + 0.9 * align;
+                float facing = 0.8 + 0.35 * align;   // a shard catches the light, but never blows out to white
                 float2 seedUv = bestPt / 6.5;
                 float wash = dot(seedUv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9;
-                half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.3) * shardLum * facing;
+                half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.18) * shardLum * facing;
                 // Thin crisp seam between shards (anti-aliased over ~1px)
                 float edgeDist = (second - best) * size / 6.5 * 0.5;
                 float seam = 1.0 - smoothstep(0.4, 1.4, edgeDist);
                 col = mix(col, col * 0.75, seam * 0.6);
-
-                // Hairline striations, barely there
-                float stria = 0.96 + 0.04 * sin(local.y * 1.6);
-                col *= stria;
 
                 // Tilt reveals the foil; faint at rest
                 float reveal = 0.5 + 0.5 * smoothstep(0.05, 0.8, length(L));
                 float k = clamp(strength * reveal * 1.15, 0.0, 1.0) * (artW * 0.9 + ringW * 0.75);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - col * k);
-                half3 outRgb = clamp(mix(scr, scr * col * 1.4, 0.35 * k), 0.0, 1.0);
+                half3 outRgb = clamp(mix(scr, scr * col * 1.3, 0.3 * k), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
