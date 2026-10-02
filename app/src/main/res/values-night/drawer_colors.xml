@@ -10,13 +10,10 @@
     <color name="home_edit_pill_text">#E4B9E2</color>
 
     <!-- Long-press app menu -->
-    <color name="app_menu_bg">#F51E1826</color>
     <color name="app_menu_text">#EDE0EA</color>
-    <color name="app_menu_text_secondary">#B8A9B8</color>
     <color name="app_menu_accent">#E4B9E2</color>
     <color name="app_menu_danger">#FF8A9A</color>
-    <color name="app_menu_divider">#2A2333</color>
     <color name="app_menu_ripple">#29E4B9E2</color>
     <color name="app_menu_highlight">#1FE4B9E2</color>
-    <color name="app_menu_scrim">#40000000</color>
+    <color name="app_menu_scrim">#33000000</color>
 </resources>

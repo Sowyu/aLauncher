@@ -56,6 +56,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
+import com.github.codeworkscreativehub.mlauncher.ui.components.AppContextMenu
 import com.github.codeworkscreativehub.mlauncher.ui.components.FrostedPillDrawable
 import com.github.codeworkscreativehub.mlauncher.ui.components.VerticalDragLayout
 import kotlinx.coroutines.Dispatchers
@@ -237,7 +238,8 @@ class AppDrawerFragment : BaseFragment() {
 
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
-                appAdapter.closeOpenedMenu()
+                // Only a real drag closes it; settling and idle are not the user touching the list
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) appAdapter.closeOpenedMenu()
                 // Scrolling the list means browsing, not typing
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING && requireContext().hasSoftKeyboard()) {
                     binding.search.hideKeyboard()
@@ -539,6 +541,17 @@ class AppDrawerFragment : BaseFragment() {
             it.requestFocus()
             (it as? android.widget.EditText)?.setSelection(it.text.length)
         }
+    }
+
+    /** Where the long-press menu draws: over the whole drawer, frosting the same backdrop as the search pill. */
+    fun contextMenuHost(): AppContextMenu.Host? {
+        val b = _binding ?: return null
+        return AppContextMenu.Host(
+            container = b.drawerRoot,
+            backdrop = b.drawerBlur,
+            frosted = DrawerBackground.frostedFor(shownBackground),
+            backDispatcher = requireActivity().onBackPressedDispatcher,
+        )
     }
 
     // ------------------------------------------------------------ background

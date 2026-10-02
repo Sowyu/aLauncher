@@ -46,6 +46,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.dp2px
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.getSystemIcons
 import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
+import com.github.codeworkscreativehub.mlauncher.ui.AppDrawerFragment
 import com.github.codeworkscreativehub.mlauncher.ui.components.AppContextMenu
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -376,7 +377,7 @@ class AppDrawerAdapter(
 
         private fun showContextMenu(app: AppListItem, flag: AppDrawerFlag, prefs: Prefs) {
             contextMenu?.dismiss(animate = false)
-            val activity = fragment.activity ?: return
+            val host = (fragment as? AppDrawerFragment)?.contextMenuHost() ?: return
             val packageName = app.activityPackage
             val defaults = "0011111"
             val flags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", defaults)
@@ -409,15 +410,11 @@ class AppDrawerAdapter(
                     appRenameEdit.hint = app.activityLabel
                     openInlineEditor(appRenameLayout, appRenameEdit)
                 })
-                if (enabled(4)) add(
-                    AppContextMenu.Action(
-                        R.drawable.ic_tag,
-                        getLocalizedString(if (app.customTag.isBlank()) R.string.app_menu_add_tag else R.string.app_menu_edit_tag)
-                    ) {
-                        appTagEdit.hint = app.activityLabel
-                        openInlineEditor(appTagLayout, appTagEdit)
-                    })
-                if (enabled(5)) add(AppContextMenu.Action(R.drawable.ic_info, getLocalizedString(R.string.app_menu_app_info)) {
+                if (enabled(4)) add(AppContextMenu.Action(R.drawable.ic_tag, getLocalizedString(R.string.tag)) {
+                    appTagEdit.hint = app.activityLabel
+                    openInlineEditor(appTagLayout, appTagEdit)
+                })
+                if (enabled(5)) add(AppContextMenu.Action(R.drawable.ic_info, getLocalizedString(R.string.info)) {
                     appInfoListener(app)
                 })
                 if (enabled(6)) add(
@@ -430,18 +427,8 @@ class AppDrawerAdapter(
             }
             if (actions.isEmpty()) return
 
-            val title = prefs.getAppAlias(packageName).takeIf { it.isNotBlank() } ?: app.activityLabel
-            val menu = AppContextMenu(activity, appTitle, gravity, title, packageName, actions) {
-                contextMenu = null
-            }
+            val menu = AppContextMenu(host, appTitle, gravity, actions) { contextMenu = null }
             contextMenu = menu
-            val cached = iconCache[packageName]
-            menu.setIcon(cached ?: AppCompatResources.getDrawable(context, R.drawable.ic_default_app))
-            if (cached == null) iconLoadingScope.launch {
-                val icon = loadIcon(app)
-                iconCache[packageName] = icon
-                menu.setIcon(icon)
-            }
             menu.show()
         }
 
