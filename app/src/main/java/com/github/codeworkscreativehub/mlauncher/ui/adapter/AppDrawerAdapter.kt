@@ -32,6 +32,7 @@ import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.common.isSystemApp
 import com.github.codeworkscreativehub.common.showKeyboard
+import com.github.codeworkscreativehub.fuzzywuzzy.AppSearch
 import com.github.codeworkscreativehub.fuzzywuzzy.FuzzyFinder
 import com.github.codeworkscreativehub.fuzzywuzzy.FuzzyFinder.filterItems
 import com.github.codeworkscreativehub.mlauncher.R
@@ -80,6 +81,16 @@ class AppDrawerAdapter(
 
     private var isBangSearch = false
 
+    /** True while the list shows search results: rows then always carry an icon. */
+    private var searching = false
+    private var lastQuery = ""
+
+    /** Normalised labels for [AppSearch], rebuilt when the app list changes. */
+    private class SearchIndex(val source: List<AppListItem>, val items: List<AppListItem>, val keys: List<AppSearch.SearchKey>)
+
+    @Volatile
+    private var searchIndex: SearchIndex? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         binding = AdapterAppDrawerBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         prefs = Prefs(parent.context)
@@ -108,7 +119,7 @@ class AppDrawerAdapter(
         AppLogger.d("AppListDebug", "🔧 Binding position=$position, label=${appModel.activityLabel}, package=${appModel.activityPackage}")
 
         // Pass icon cache and loading scope to bind
-        holder.bind(flag, gravity, appModel, appClickListener, appInfoListener, appDeleteListener, iconCache, iconLoadingScope, prefs)
+        holder.bind(flag, gravity, appModel, appClickListener, appInfoListener, appDeleteListener, iconCache, iconLoadingScope, prefs, searching)
 
         holder.appHide.setOnClickListener {
             AppLogger.d("AppListDebug", "❌ Hide clicked for ${appModel.activityLabel} (${appModel.activityPackage})")
@@ -202,37 +213,48 @@ class AppDrawerAdapter(
 
     override fun getFilter(): Filter = this.appFilter
 
+    /** Filters the list for [query]; remembered so a list reload keeps the results. */
+    fun search(query: String) {
+        lastQuery = query
+        appFilter.filter(query)
+    }
+
     private fun createAppFilter(): Filter {
         return object : Filter() {
             override fun performFiltering(charSearch: CharSequence?): FilterResults {
                 val searchChars = charSearch.toString().trim().lowercase()
                 val isTagSearch = searchChars.startsWith("#")
                 val query = if (isTagSearch) searchChars.substringAfter("#") else searchChars
+                val prefs = Prefs(context)
 
-                val filtered = filterItems(
-                    itemsList = appsList,
-                    query = query,
-                    prefs = Prefs(context),
-                    scoreProvider = { app, q ->
-                        if (isTagSearch) FuzzyFinder.scoreString(app.tag, q, Constants.MAX_FILTER_STRENGTH)
-                        else FuzzyFinder.scoreApp(context, app, q, Constants.MAX_FILTER_STRENGTH)
-                    },
-                    labelProvider = { app ->
-                        if (isTagSearch) app.tag else prefs.getAppAlias(app.activityPackage)
-                            .takeIf { it.isNotBlank() }
-                            ?: app.activityLabel
-                    },
-                    loggerTag = "appScore"
-                )
+                val filtered = if (isTagSearch) {
+                    filterItems(
+                        itemsList = appsList.toList(),
+                        query = query,
+                        prefs = prefs,
+                        scoreProvider = { app, q -> FuzzyFinder.scoreString(app.tag, q, Constants.MAX_FILTER_STRENGTH) },
+                        labelProvider = { app -> app.tag },
+                        loggerTag = "appScore"
+                    )
+                } else if (query.isEmpty()) {
+                    appsList.toMutableList()
+                } else {
+                    val index = searchIndexFor(prefs)
+                    val threshold = if (prefs.enableFilterStrength) {
+                        prefs.filterStrength.toFloat() / Constants.MAX_FILTER_STRENGTH
+                    } else null
+                    AppSearch.rank(index.keys, query, threshold, prefs.searchFromStart)
+                        .mapTo(mutableListOf()) { index.items[it] }
+                }
 
                 return FilterResults().apply { values = filtered }
             }
-
 
             @SuppressLint("NotifyDataSetChanged")
             @Suppress("UNCHECKED_CAST")
             override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
                 if (results?.values is MutableList<*>) {
+                    searching = !constraint.isNullOrBlank()
                     appFilteredList = results.values as MutableList<AppListItem>
                     notifyDataSetChanged()
                 } else {
@@ -255,10 +277,29 @@ class AppDrawerAdapter(
         }
     }
 
+    /** Builds the search keys once per app list (the list is also edited in place when an app is hidden). */
+    private fun searchIndexFor(prefs: Prefs): SearchIndex {
+        val source = appsList
+        searchIndex?.let { if (it.source === source && it.items.size == source.size) return it }
+        val items = source.toList()
+        val keys = items.map { app ->
+            val label = prefs.getAppAlias(app.activityPackage).takeIf { it.isNotBlank() } ?: app.activityLabel
+            AppSearch.SearchKey(label, app.activityPackage)
+        }
+        return SearchIndex(source, items, keys).also { searchIndex = it }
+    }
+
     @SuppressLint("NotifyDataSetChanged")
     fun setAppList(appsList: MutableList<AppListItem>) {
         this.appsList = appsList
+        searchIndex = null
+        if (lastQuery.isNotBlank()) {
+            // Keep showing results for the current query instead of the full list
+            appFilter.filter(lastQuery)
+            return
+        }
         this.appFilteredList = appsList
+        searching = false
         notifyDataSetChanged()
     }
 
@@ -312,7 +353,8 @@ class AppDrawerAdapter(
             appDeleteListener: (AppListItem) -> Unit,
             iconCache: ConcurrentHashMap<String, Drawable>,
             iconLoadingScope: CoroutineScope,
-            prefs: Prefs
+            prefs: Prefs,
+            searching: Boolean
         ) = with(itemView) {
 
             val contextMenuFlags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", "0011111")
@@ -430,13 +472,16 @@ class AppDrawerAdapter(
 
             // ----------------------------
             // 6️⃣ Icon loading off main thread
+            // Search results always show icons, even with app list icons turned off
             val placeholderIcon = AppCompatResources.getDrawable(context, R.drawable.ic_default_app)
             val cachedIcon = iconCache[packageName]
-            setAppTitleIcon(appTitle, cachedIcon ?: placeholderIcon, prefs)
+            // Tag the view with the package name so a late load for a recycled row is ignored
+            appTitle.tag = packageName
+            setAppTitleIcon(appTitle, cachedIcon ?: placeholderIcon, prefs, searching)
 
-            if (cachedIcon == null && packageName.isNotBlank() && prefs.iconPackAppList != Constants.IconPacks.Disabled) {
-                // 1. Tag the view with the package name to prevent "wrong icon" bugs
-                appTitle.tag = packageName
+            if (cachedIcon == null && packageName.isNotBlank() &&
+                (searching || prefs.iconPackAppList != Constants.IconPacks.Disabled)
+            ) {
 
                 iconLoadingScope.launch {
                     val icon = withContext(Dispatchers.IO) {
@@ -457,7 +502,7 @@ class AppDrawerAdapter(
                     // 3. ONLY update the UI if the view is still intended for THIS package
                     // This prevents the wrong icon from appearing after scrolling
                     if (appTitle.tag == packageName) {
-                        setAppTitleIcon(appTitle, icon, prefs)
+                        setAppTitleIcon(appTitle, icon, prefs, this@AppDrawerAdapter.searching)
                     }
                 }
             }
@@ -521,8 +566,8 @@ class AppDrawerAdapter(
 
 
         // Helper to set icon on appTitle with correct size and alignment
-        private fun setAppTitleIcon(appTitle: TextView, icon: Drawable?, prefs: Prefs) {
-            if (icon == null || prefs.iconPackAppList == Constants.IconPacks.Disabled) {
+        private fun setAppTitleIcon(appTitle: TextView, icon: Drawable?, prefs: Prefs, force: Boolean = false) {
+            if (icon == null || (!force && prefs.iconPackAppList == Constants.IconPacks.Disabled)) {
                 appTitle.setCompoundDrawables(null, null, null, null)
                 return
             }
@@ -545,7 +590,12 @@ class AppDrawerAdapter(
                     appTitle.compoundDrawablePadding = iconPadding
                 }
 
-                else -> appTitle.setCompoundDrawables(null, null, null, null)
+                else -> if (force) {
+                    appTitle.setCompoundDrawables(icon, null, null, null)
+                    appTitle.compoundDrawablePadding = iconPadding
+                } else {
+                    appTitle.setCompoundDrawables(null, null, null, null)
+                }
             }
         }
 

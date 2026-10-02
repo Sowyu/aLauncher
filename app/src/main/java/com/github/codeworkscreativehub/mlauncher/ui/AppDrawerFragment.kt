@@ -191,10 +191,11 @@ class AppDrawerFragment : BaseFragment() {
             adapter = appAdapter
         }
 
-        // While searching, the list is laid out bottom-up so the best match sits right above the field
+        // Search results read top-down from the top of the list, best match first
         appAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() {
-                if (layoutManager.reverseLayout) _binding?.appsRecyclerView?.scrollToPosition(0)
+                val b = _binding ?: return
+                if (!b.search.query.isNullOrBlank()) b.appsRecyclerView.scrollToPosition(0)
             }
         })
 
@@ -301,11 +302,10 @@ class AppDrawerFragment : BaseFragment() {
                 }
 
                 val searching = !newText.isNullOrBlank()
-                if (layoutManager.reverseLayout != searching) layoutManager.reverseLayout = searching
                 // Section letters only make sense for the full, alphabetical list
                 binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
 
-                newText?.let { appAdapter.filter.filter(it.trim()) }
+                newText?.let { appAdapter.search(it.trim()) }
                 return false
             }
         })
