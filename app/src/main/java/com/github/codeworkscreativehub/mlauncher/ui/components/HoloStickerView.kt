@@ -135,8 +135,8 @@ class HoloStickerView @JvmOverloads constructor(
         if (want) {
             baseX = Float.NaN
             sensorManager?.registerListener(this, sensor, SensorManager.SENSOR_DELAY_GAME)
-            gyro?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-            linear?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+            gyro?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+            linear?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
             lastNs = 0L
         } else {
             sensorManager?.unregisterListener(this)
@@ -179,7 +179,7 @@ class HoloStickerView @JvmOverloads constructor(
         if (abs(tiltX - lastDrawX) > 0.05f || abs(tiltY - lastDrawY) > 0.05f) {
             lastDrawX = tiltX
             lastDrawY = tiltY
-            postInvalidateOnAnimation()
+            scheduleFrame()
         }
     }
 
@@ -197,7 +197,7 @@ class HoloStickerView @JvmOverloads constructor(
         val rate = sqrt(wx * wx + wy * wy + wz * wz)
         energy = maxOf(energy * 0.94f, (rate / 3f).coerceAtMost(1f))
         stepPush(d)
-        postInvalidateOnAnimation()
+        requestFoilFrame()
     }
 
     private fun onMove(event: SensorEvent) {
@@ -208,7 +208,27 @@ class HoloStickerView @JvmOverloads constructor(
         val a = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
         energy = maxOf(energy, (a / 6f).coerceAtMost(1f))
         stepPush(d)
-        postInvalidateOnAnimation()
+        requestFoilFrame()
+    }
+
+    private var lastSpin = 0f
+    private var lastPushX = 0f
+    private var lastPushY = 0f
+    private var lastEnergy = 0f
+    private var framePending = false
+
+    /** One redraw per vsync at most, and only when something visible changed. */
+    private fun requestFoilFrame() {
+        if (abs(spin - lastSpin) < 0.003f && abs(pushX - lastPushX) < 0.004f &&
+            abs(pushY - lastPushY) < 0.004f && abs(energy - lastEnergy) < 0.01f) return
+        lastSpin = spin; lastPushX = pushX; lastPushY = pushY; lastEnergy = energy
+        scheduleFrame()
+    }
+
+    private fun scheduleFrame() {
+        if (framePending) return
+        framePending = true
+        postOnAnimation { framePending = false; invalidate() }
     }
 
     private fun stepPush(d: Float) {
@@ -230,6 +250,7 @@ class HoloStickerView @JvmOverloads constructor(
         if (size <= 0) return null
         if (base != null && builtFor == size) return base
         builtFor = size
+        childFor = null
 
         // 1. Sprite scaled nearest-neighbour into the box, leaving room for the outline
         val art = createBitmap(size, size)
@@ -326,22 +347,22 @@ class HoloStickerView @JvmOverloads constructor(
         val bmp = ensureBase() ?: return
         val left = (width - bmp.width) / 2f
         val top = (height - bmp.height) / 2f
-        canvas.drawBitmap(bmp, left, top, basePaint)
-        val art = artMask ?: return
-        val ring = borderMask ?: return
-        if (!holoEnabled || holoIntensity <= 0f) return
-
+        val art = artMask
+        val ring = borderMask
         val size = bmp.width.toFloat()
         bounds.set(left, top, left + size, top + size)
+        if (!holoEnabled || holoIntensity <= 0f || art == null || ring == null) {
+            canvas.drawBitmap(bmp, left, top, basePaint)
+            return
+        }
         val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
         val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
         val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
-        // ~50% at rest, ~85% fully tilted, at the default intensity of 0.8
-        val strength = ((0.22f + 0.5f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
-
+        val strength = ((0.42f + 0.33f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && foilShader != null) {
-            drawFoilShader(canvas, art, ring, left, top, size, tx, ty, motion, strength)
+            drawFoilShader(canvas, bmp, art, ring, left, top, size, tx, ty, strength)
         } else {
+            canvas.drawBitmap(bmp, left, top, basePaint)
             drawFoilLegacy(canvas, bmp, art, ring, left, top, size, tx, ty, motion, strength)
         }
     }
@@ -354,24 +375,30 @@ class HoloStickerView @JvmOverloads constructor(
      */
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun drawFoilShader(
-        canvas: Canvas, art: Bitmap, ring: Bitmap, left: Float, top: Float, size: Float,
-        tx: Float, ty: Float, motion: Float, strength: Float,
+        canvas: Canvas, bmp: Bitmap, art: Bitmap, ring: Bitmap, left: Float, top: Float, size: Float,
+        tx: Float, ty: Float, strength: Float,
     ) {
         val sh = foilShader as RuntimeShader
+        if (childFor !== bmp) {
+            childFor = bmp
+            fun child(b: Bitmap) = BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+                .apply { filterMode = BitmapShader.FILTER_MODE_NEAREST }
+            sh.setInputShader("sticker", child(bmp))
+            sh.setInputShader("artMask", child(art))
+            sh.setInputShader("ringMask", child(ring))
+        }
         sh.setFloatUniform("origin", left, top)
         sh.setFloatUniform("size", size)
         sh.setFloatUniform("tilt", tx, ty)
         sh.setFloatUniform("spin", spin)
         sh.setFloatUniform("strength", strength)
         foilPaint.shader = sh
-        val foil = { canvas.drawRect(bounds, foilPaint) }
-        foilLayer(canvas, art, left, top, screenPaint, 0.9f, foil)
-        foilLayer(canvas, art, left, top, overlayPaint, 0.35f, foil)
-        // Holo edge on the die-cut border, a little weaker
-        foilLayer(canvas, ring, left, top, overPaint, 0.65f, foil)
+        canvas.drawRect(bounds, foilPaint)
     }
 
-    private val foilPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var childFor: Bitmap? = null
+
+    private val foilPaint = Paint()
 
     private val foilShader: Any? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -417,6 +444,9 @@ class HoloStickerView @JvmOverloads constructor(
         // through a pattern that itself never moves. Etched lines and glitter flakes are
         // fixed to the card and only brighten when the angle suits their facet.
         const val FOIL_AGSL = """
+            uniform shader sticker;
+            uniform shader artMask;
+            uniform shader ringMask;
             uniform float2 origin;
             uniform float size;
             uniform float2 tilt;
@@ -437,43 +467,50 @@ class HoloStickerView @JvmOverloads constructor(
             }
 
             half4 main(float2 p) {
-                float2 uv = (p - origin) / size;
-                float c = cos(spin); float s = sin(spin);
-                // View/light direction from tilt; twisting the phone rotates it
-                float2 L = float2(c * tilt.x - s * tilt.y, s * tilt.x + c * tilt.y);
-                float lAmt = clamp(length(L), 0.0, 1.0);
+                float2 local = p - origin;
+                half4 base = sticker.eval(local);
+                if (base.a < 0.004) return half4(0);
+                float artW = artMask.eval(local).a;
+                float ringW = ringMask.eval(local).a;
+                float2 uv = local / size;
 
-                // Grating direction fixed to the card, gently warped
+                float c = cos(spin); float s = sin(spin);
+                float2 L = float2(c * tilt.x - s * tilt.y, s * tilt.x + c * tilt.y);
+
+                // Diffraction foil: grating direction fixed to the card (smoothly warped);
+                // colour = fixed structure + view angle. The structure never moves.
                 float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
                 float2 g = float2(cos(ang), sin(ang));
-                // Diffracted colour: structure term (fixed) + angle term (tilt)
-                float phase = dot(uv, g) * 1.8 + dot(L, g) * 1.5 + noise(uv * 7.0) * 0.18;
-                half3 rb = mix(spectrum(phase), half3(1.0), 0.18);
+                float phase = dot(uv, g) * 1.6 + dot(L, g) * 1.4 + noise(uv * 5.0) * 0.15;
+                half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
 
-                // Specular sheen: the reflection of the light moves across the static foil
+                // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
+                float swirl = sin((uv.x * 0.8 + uv.y) * 18.0 + noise(uv * 3.0) * 6.0) * 0.5 + 0.5;
+                float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
+
+                // Moving reflection of the light; foil is brightest where it catches
                 float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.75;
                 float2 dh = uv - hc;
-                float sheen = exp(-dot(dh, dh) * 4.0);
-                // Foil only lights up near the reflection, like real cards (dull away from it)
-                float bright = 0.22 + 0.78 * sheen;
+                float sheen = exp(-dot(dh, dh) * 2.4);
+                float bright = 0.45 + 0.55 * sheen;
 
-                // Etched lines fixed to the card; they glint when the angle crosses them
-                float ln = abs(sin(dot(uv, float2(0.866, -0.5)) * 220.0));
-                float etch = smoothstep(0.85, 1.0, ln) * (0.2 + 0.8 * clamp(abs(dot(L, float2(0.5, 0.866))), 0.0, 1.0));
-
-                // Glitter flakes fixed in place, each with its own facet; a flake flashes when
-                // the tilt matches its facet, then goes dark again. They never move.
-                float2 cell = floor(uv * 48.0);
-                float2 f = fract(uv * 48.0) - 0.5;
+                // A few large glitter flakes fixed in place that flash when the angle matches
+                float2 cellUv = uv * 14.0;
+                float2 cell = floor(cellUv);
+                float2 f = fract(cellUv) - 0.5;
                 float r = hash(cell);
                 float2 facet = float2(hash(cell + 3.1), hash(cell + 7.7)) * 2.2 - 1.1;
-                float match = clamp(1.0 - length(L - facet) * 1.6, 0.0, 1.0);
-                float flake = step(0.86, r) * smoothstep(0.42, 0.05, length(f)) * pow(match, 3.0);
+                float match = clamp(1.0 - length(L - facet) * 1.8, 0.0, 1.0);
+                float flake = step(0.7, r) * smoothstep(0.32, 0.0, length(f)) * match * match;
 
-                float a = strength * bright;
-                half3 col = rb * bright + half3(etch * 0.35 * bright) + half3(flake * 1.4);
-                float alpha = clamp(a + flake * 0.9 * clamp(strength * 1.5, 0.0, 1.0), 0.0, 1.0);
-                return half4(col * alpha, alpha);
+                half3 foil = rb * relief * bright;
+                float k = strength * bright * (artW * 0.85 + ringW * 0.7);
+                // Screen blend keeps Ditto's pink, then a touch of colour mix for richness
+                half3 rgb = base.rgb / max(base.a, 0.001);
+                half3 scr = 1.0 - (1.0 - rgb) * (1.0 - foil * k);
+                half3 tint = mix(scr, scr * foil * 1.6, 0.18 * k);
+                half3 outRgb = clamp(tint + half3(flake * 0.9 * strength * artW), 0.0, 1.0);
+                return half4(outRgb * base.a, base.a);
             }
         """
     }
