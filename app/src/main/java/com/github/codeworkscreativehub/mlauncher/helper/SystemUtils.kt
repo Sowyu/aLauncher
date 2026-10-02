@@ -266,18 +266,6 @@ fun isSystemInDarkMode(context: Context): Boolean {
     return uiModeManager.nightMode == UiModeManager.MODE_NIGHT_YES
 }
 
-fun setThemeMode(context: Context, isDark: Boolean, view: View) {
-    // Retrieve background color based on the theme
-    val backgroundAttr = if (isDark) R.attr.backgroundDark else R.attr.backgroundLight
-
-    val typedValue = TypedValue()
-    val theme: Resources.Theme = context.theme
-    theme.resolveAttribute(backgroundAttr, typedValue, true)
-
-    // Apply the background color from styles.xml
-    view.setBackgroundResource(typedValue.resourceId)
-}
-
 fun parseBlacklistXML(context: Context): List<String> {
     // Obtain an XmlPullParser for the blacklist.xml file
     context.resources.getXml(R.xml.blacklist).use { parser ->

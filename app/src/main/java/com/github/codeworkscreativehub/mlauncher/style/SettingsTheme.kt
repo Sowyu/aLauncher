@@ -36,7 +36,7 @@ object SettingsType {
     )
 
     val screenTitle = style(34, FontWeight.Medium, 42)
-    val dialogTitle = style(24, FontWeight.Medium, 30)
+    val dialogTitle = style(22, FontWeight.Medium, 28)
     val categoryTitle = style(20, FontWeight.Medium, 26)
     val rowTitle = style(17, FontWeight.Normal, 23)
     val option = style(17, FontWeight.Normal, 23)

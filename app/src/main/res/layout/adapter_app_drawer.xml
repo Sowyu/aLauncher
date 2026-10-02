@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             xmlns:app="http://schemas.android.com/apk/res-auto"
              xmlns:tools="http://schemas.android.com/tools"
              android:layout_width="match_parent"
              android:layout_height="wrap_content"
@@ -23,97 +22,82 @@
 
     </FrameLayout>
 
+    <!-- Inline rename: rounded field (clear = cancel) and a Done pill, in place of the row -->
     <LinearLayout
         android:id="@+id/appRenameLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:animateLayoutChanges="true"
-        android:background="?attr/primaryColorInverseTrans80"
         android:clickable="true"
         android:focusable="true"
-        android:gravity="end|center_vertical"
+        android:gravity="center_vertical"
+        android:minHeight="64dp"
         android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
         android:visibility="gone"
-        tools:visibility="gone">
+        tools:visibility="visible">
 
-        <com.github.creativecodecat.components.views.FontEditText
-            android:id="@+id/appRenameEdit"
-            style="@style/TextLarge"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_weight="1"
-            android:autofillHints="name"
-            android:background="@null"
-            android:gravity="center_vertical"
-            android:inputType="textCapWords"
-            android:maxLength="30"
-            android:maxLines="1"
-            android:paddingVertical="@dimen/app_padding_vertical"
-            android:textColorHint="?attr/primaryColorTrans50"
-            tools:ignore="LabelFor" />
+        <LinearLayout style="@style/ALauncher.InlineField">
 
-        <ImageView
+            <com.github.creativecodecat.components.views.FontEditText
+                android:id="@+id/appRenameEdit"
+                style="@style/ALauncher.InlineField.Edit"
+                android:autofillHints="name"
+                tools:ignore="LabelFor" />
+
+            <ImageView
+                android:id="@+id/appSaveCancel"
+                style="@style/ALauncher.InlineField.Clear"
+                android:contentDescription="@string/cancel" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/appSaveRename"
+            style="@style/Widget.ALauncher.Button"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:contentDescription="@string/rename"
-            android:paddingHorizontal="2dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_tick" />
-
-        <ImageView
-            android:id="@+id/appSaveCancel"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_marginEnd="18dp"
-            android:contentDescription="@string/cancel"
-            android:paddingHorizontal="2dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_close" />
-
+            android:layout_height="52dp"
+            android:layout_marginStart="8dp"
+            android:minHeight="52dp"
+            android:paddingHorizontal="20dp"
+            android:text="@string/st_done" />
     </LinearLayout>
 
+    <!-- Inline tag: same field and pill -->
     <LinearLayout
         android:id="@+id/appTagLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:animateLayoutChanges="true"
-        android:background="?attr/primaryColorInverseTrans80"
         android:clickable="true"
         android:focusable="true"
-        android:gravity="end|center_vertical"
+        android:gravity="center_vertical"
+        android:minHeight="64dp"
         android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
         android:visibility="gone"
         tools:visibility="gone">
 
-        <com.github.creativecodecat.components.views.FontEditText
-            android:id="@+id/appTagEdit"
-            style="@style/TextLarge"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_weight="1"
-            android:autofillHints="name"
-            android:background="@null"
-            android:gravity="center_vertical"
-            android:inputType="textCapWords"
-            android:maxLength="30"
-            android:maxLines="1"
-            android:paddingVertical="@dimen/app_padding_vertical"
-            android:textColorHint="?attr/primaryColorTrans50"
-            tools:ignore="LabelFor" />
+        <LinearLayout style="@style/ALauncher.InlineField">
 
-        <com.github.creativecodecat.components.views.FontAppCompatTextView
+            <com.github.creativecodecat.components.views.FontEditText
+                android:id="@+id/appTagEdit"
+                style="@style/ALauncher.InlineField.Edit"
+                android:autofillHints="name"
+                tools:ignore="LabelFor" />
+
+            <ImageView
+                android:id="@+id/appTagCancel"
+                style="@style/ALauncher.InlineField.Clear"
+                android:contentDescription="@string/cancel" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/appSaveTag"
-            style="@style/TextSmallBold"
+            style="@style/Widget.ALauncher.Button"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:gravity="center"
+            android:layout_height="52dp"
+            android:layout_marginStart="8dp"
+            android:minHeight="52dp"
             android:paddingHorizontal="20dp"
-            android:text="@string/tag"
-            android:textAllCaps="true" />
-
+            android:text="@string/st_done" />
     </LinearLayout>
 
 </FrameLayout>

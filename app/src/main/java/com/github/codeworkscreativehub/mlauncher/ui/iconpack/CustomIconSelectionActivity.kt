@@ -7,7 +7,10 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.CheckBox
+import android.util.TypedValue
+import android.view.View
+import android.widget.RadioButton
+import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -96,87 +99,88 @@ class CustomIconSelectionActivity : androidx.appcompat.app.AppCompatActivity() {
         var selectedIndex =
             iconPacks.indexOfFirst { it.packageName == currentPackage }.coerceAtLeast(0)
 
-        val container = LinearLayout(context).apply {
+        // Views use the dialog's themed context so the radio buttons get the mauve tint
+        val builder = MaterialAlertDialogBuilder(context)
+        val ctx = builder.context
+        val dp = context.resources.displayMetrics.density
+        fun Int.dp() = (this * dp).toInt()
+
+        val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16, 16, 16, 16)
+            setPadding(0, 4.dp(), 0, 0)
         }
 
-        val itemLayouts = mutableListOf<Pair<LinearLayout, CheckBox>>() // To manage state
+        val radios = mutableListOf<RadioButton>()
+        fun select(index: Int) {
+            selectedIndex = index
+            radios.forEachIndexed { i, radio -> radio.isChecked = i == index }
+        }
 
+        // One 64dp row per pack: icon, name, radio at the end. The whole row is the target.
         iconPacks.forEachIndexed { index, iconPack ->
-            val itemLayout = LinearLayout(context).apply {
+            val itemLayout = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(0, 8, 0, 8)
-                }
-                setPadding(8, 8, 8, 8)
+                minimumHeight = 64.dp()
+                setPadding(24.dp(), 0, 16.dp(), 0)
+                isClickable = true
+                isFocusable = true
+                val ripple = TypedValue()
+                ctx.theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
+                setBackgroundResource(ripple.resourceId)
+                setOnClickListener { select(index) }
             }
 
-            val icon = ImageView(context).apply {
+            val icon = ImageView(ctx).apply {
                 setImageDrawable(iconPack.icon)
-                layoutParams = LinearLayout.LayoutParams(100, 100).apply {
-                    marginEnd = 24
-                }
+                layoutParams = LinearLayout.LayoutParams(40.dp(), 40.dp()).apply { marginEnd = 16.dp() }
             }
 
-            val label = TextView(context).apply {
+            val label = TextView(ctx).apply {
                 text = iconPack.name
-                textSize = 16f
-                layoutParams =
-                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                textSize = 17f
+                setTextColor(ContextCompat.getColor(ctx, R.color.ui_text))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
-            val checkBox = CheckBox(context).apply {
+            val radio = RadioButton(ctx).apply {
                 isChecked = index == selectedIndex
-                setOnClickListener {
-                    selectedIndex = index
-                    itemLayouts.forEachIndexed { i, pair ->
-                        pair.second.isChecked = i == selectedIndex
-                    }
-                }
+                // The row handles taps; the radio only shows state
+                isClickable = false
+                isFocusable = false
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
-
-            itemLayout.setOnClickListener {
-                selectedIndex = index
-                itemLayouts.forEachIndexed { i, pair ->
-                    pair.second.isChecked = i == selectedIndex
-                }
-            }
+            radios.add(radio)
 
             itemLayout.addView(icon)
             itemLayout.addView(label)
-            itemLayout.addView(checkBox)
-
-            itemLayouts.add(Pair(itemLayout, checkBox))
+            itemLayout.addView(radio)
             container.addView(itemLayout)
         }
 
-        // Add status message view at the bottom, initially hidden and right-aligned
-        val statusTextView = TextView(context).apply {
+        val statusTextView = TextView(ctx).apply {
             text = getLocalizedString(R.string.applying_icon_pack)
             isVisible = false
-            textSize = 14f
-            gravity = Gravity.END // Align text to the right
+            textSize = 15f
+            setTextColor(ContextCompat.getColor(ctx, R.color.ui_text_secondary))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(8, 16, 8, 0)
+                setMargins(24.dp(), 12.dp(), 24.dp(), 0)
             }
         }
         container.addView(statusTextView)
 
-        val dialog = MaterialAlertDialogBuilder(context)
+        val dialog = builder
             .setTitle(getLocalizedString(R.string.choose_icon_pack))
-            .setView(container)
+            .setView(ScrollView(ctx).apply { addView(container) })
             .setPositiveButton(getLocalizedString(R.string.apply), null) // We override this below
             .setNegativeButton(getLocalizedString(R.string.cancel)) { _, _ ->
                 finish()
             }
+            // Back or a tap outside must not leave this transparent activity behind
+            .setOnCancelListener { finish() }
             .create()
 
         dialog.setOnShowListener {

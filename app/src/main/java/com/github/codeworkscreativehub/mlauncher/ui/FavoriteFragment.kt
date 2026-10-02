@@ -9,8 +9,7 @@ import android.os.Vibrator
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -26,8 +25,9 @@ import com.github.codeworkscreativehub.mlauncher.data.Constants.AppDrawerFlag
 import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentFavoriteBinding
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
-import com.github.codeworkscreativehub.mlauncher.helper.getHexForOpacity
+import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.FavoriteAdapter
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class FavoriteFragment : BaseFragment() {
 
@@ -52,8 +52,6 @@ class FavoriteFragment : BaseFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val backgroundColor = getHexForOpacity(prefs)
-        binding.mainLayout.setBackgroundColor(backgroundColor)
         viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
 
         deviceManager = requireContext().getSystemService(DevicePolicyManager::class.java)
@@ -99,11 +97,6 @@ class FavoriteFragment : BaseFragment() {
                 val fromPosition = source.bindingAdapterPosition
                 val toPosition = target.bindingAdapterPosition
 
-                // Change the background color when the item is being dragged
-                source.itemView.setBackgroundColor(
-                    ContextCompat.getColor(source.itemView.context, R.color.hover_effect)
-                )
-
                 if (fromPosition != RecyclerView.NO_POSITION && toPosition != RecyclerView.NO_POSITION) {
                     val favAdapter = recyclerView.adapter as? FavoriteAdapter ?: return false
                     favAdapter.moveItem(fromPosition, toPosition)
@@ -119,9 +112,8 @@ class FavoriteFragment : BaseFragment() {
 
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
-                viewHolder?.itemView?.setBackgroundColor(
-                    ContextCompat.getColor(viewHolder.itemView.context, R.color.hover_effect)
-                )
+                // The dragged row lifts to the elevated plum
+                viewHolder?.itemView?.setBackgroundResource(R.drawable.bg_ui_row_active)
             }
 
 
@@ -131,12 +123,7 @@ class FavoriteFragment : BaseFragment() {
             ) {
                 // Reset the background color after dragging is finished
                 super.clearView(recyclerView, viewHolder)
-                viewHolder.itemView.setBackgroundColor(
-                    ContextCompat.getColor(
-                        viewHolder.itemView.context,
-                        R.color.transparent
-                    )
-                )  // Set the background to transparent
+                viewHolder.itemView.setBackgroundResource(R.drawable.bg_ui_row)
             }
         }
 
@@ -164,9 +151,6 @@ class FavoriteFragment : BaseFragment() {
 
     override fun onResume() {
         super.onResume()
-
-        val backgroundColor = getHexForOpacity(prefs)
-        binding.mainLayout.setBackgroundColor(backgroundColor)
         // Reload the saved order in case the user selected a new app from the app drawer
         viewModel.loadAppOrder()
     }
@@ -174,8 +158,9 @@ class FavoriteFragment : BaseFragment() {
     private fun initObservers() {
         binding.pageName.apply {
             text = getLocalizedString(R.string.favorite_apps)
-            textSize = prefs.appSize * 1.1f
-            setTextColor(prefs.appColor)
+            if (FontManager.isBundled(context)) {
+                ResourcesCompat.getFont(context, R.font.google_sans_flex_medium)?.let { typeface = it }
+            }
         }
 
         // Setup add/remove buttons
@@ -189,13 +174,6 @@ class FavoriteFragment : BaseFragment() {
     }
 
     private fun setupAddRemoveButtons() {
-        val margin = resources.getDimensionPixelSize(R.dimen.bottom_margin_gesture_nav)
-        binding.addRemoveAppButton.apply {
-            val params = layoutParams as ViewGroup.MarginLayoutParams
-            params.bottomMargin = margin
-            layoutParams = params
-        }
-
         binding.addAppButton.apply {
             setOnClickListener {
                 addHomeAppSlot()
@@ -257,20 +235,21 @@ class FavoriteFragment : BaseFragment() {
             }
         }.toTypedArray()
 
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.select_app_to_remove)
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(getLocalizedString(R.string.select_app_to_remove))
             .setItems(favoriteLabels) { _, which ->
                 // Confirm removal of the selected favorite
                 val favoriteIndex = which
-                AlertDialog.Builder(requireContext())
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(favoriteLabels[favoriteIndex])
                     .setMessage(getLocalizedString(R.string.confirm_remove_favorite))
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                    .setPositiveButton(getLocalizedString(R.string.remove_app)) { _, _ ->
                         removeFavoriteAtPosition(favoriteIndex)
                     }
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton(getLocalizedString(R.string.cancel), null)
                     .show()
             }
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(getLocalizedString(R.string.cancel), null)
             .show()
     }
 

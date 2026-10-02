@@ -8,11 +8,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +36,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
@@ -488,7 +490,7 @@ fun SettingsDialog(
                 .widthIn(max = 520.dp)
                 .fillMaxWidth()
         ) {
-            Column(Modifier.padding(top = 24.dp, bottom = 12.dp)) {
+            Column(Modifier.padding(top = 24.dp, bottom = 16.dp)) {
                 Text(
                     title,
                     style = SettingsType.dialogTitle,
@@ -504,18 +506,36 @@ fun SettingsDialog(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) { buttons() }
             }
         }
     }
 }
 
+/** [primary] is the mauve pill for the dialog's main action; the rest are mauve text buttons. */
 @Composable
-fun DialogButton(text: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp)) {
-        Text(text, style = SettingsType.button, color = SettingsTheme.palette.accent)
+fun DialogButton(text: String, primary: Boolean = false, onClick: () -> Unit) {
+    val palette = SettingsTheme.palette
+    if (primary) {
+        Button(
+            onClick = onClick,
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = palette.accent, contentColor = palette.onAccent),
+            elevation = null,
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .heightIn(min = 48.dp)
+        ) {
+            Text(text, style = SettingsType.button, color = palette.onAccent)
+        }
+    } else {
+        TextButton(onClick = onClick, shape = CircleShape, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(text, style = SettingsType.button, color = palette.accent)
+        }
     }
 }
 
@@ -533,7 +553,7 @@ fun OptionsDialog(
     SettingsDialog(
         title = title,
         onDismiss = onDismiss,
-        buttons = { DialogButton(getLocalizedString(R.string.st_cancel), onDismiss) }
+        buttons = { DialogButton(getLocalizedString(R.string.st_cancel), onClick = onDismiss) }
     ) {
         options.forEachIndexed { index, label ->
             Row(
@@ -581,7 +601,7 @@ fun FlagsDialog(
     SettingsDialog(
         title = title,
         onDismiss = onDismiss,
-        buttons = { DialogButton(getLocalizedString(R.string.st_done), onDismiss) }
+        buttons = { DialogButton(getLocalizedString(R.string.st_done), primary = true, onClick = onDismiss) }
     ) {
         labels.forEachIndexed { index, label ->
             val isChecked = checked.getOrElse(index) { false }
@@ -624,7 +644,7 @@ fun ActionsDialog(
     SettingsDialog(
         title = title,
         onDismiss = onDismiss,
-        buttons = { DialogButton(getLocalizedString(R.string.st_cancel), onDismiss) }
+        buttons = { DialogButton(getLocalizedString(R.string.st_cancel), onClick = onDismiss) }
     ) {
         if (message != null) {
             Text(
@@ -668,8 +688,8 @@ fun ConfirmDialog(
         title = title,
         onDismiss = onDismiss,
         buttons = {
-            DialogButton(getLocalizedString(R.string.st_cancel), onDismiss)
-            DialogButton(confirmLabel) {
+            DialogButton(getLocalizedString(R.string.st_cancel), onClick = onDismiss)
+            DialogButton(confirmLabel, primary = true) {
                 onDismiss()
                 onConfirm()
             }
@@ -683,6 +703,9 @@ fun ConfirmDialog(
         )
     }
 }
+
+private val SwatchShape = RoundedCornerShape(16.dp)
+private val InnerSwatchShape = RoundedCornerShape(11.dp)
 
 private val PresetColors = listOf(
     0xFFE4B9E2, 0xFF3B1830, 0xFFFFFFFF, 0xFF000000,
@@ -725,8 +748,8 @@ fun ColorPickerDialog(
         title = title,
         onDismiss = onDismiss,
         buttons = {
-            DialogButton(getLocalizedString(R.string.st_cancel), onDismiss)
-            DialogButton(getLocalizedString(R.string.st_done)) {
+            DialogButton(getLocalizedString(R.string.st_cancel), onClick = onDismiss)
+            DialogButton(getLocalizedString(R.string.st_done), primary = true) {
                 onDismiss()
                 onPick(color or 0xFF000000.toInt())
             }
@@ -751,9 +774,9 @@ fun ColorPickerDialog(
                     Modifier
                         .weight(1f)
                         .height(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(palette.surfaceVariant)
-                        .padding(horizontal = 16.dp),
+                        .clip(CircleShape)
+                        .background(palette.elevated)
+                        .padding(horizontal = 20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("#", style = SettingsType.rowTitle, color = palette.textSecondary)
@@ -781,29 +804,34 @@ fun ColorPickerDialog(
 
             Spacer(Modifier.height(20.dp))
 
-            // Presets, two rows of eight
-            PresetColors.chunked(8).forEach { rowColors ->
+            // Presets: four columns of large rounded swatches; the picked one gets a mauve ring
+            PresetColors.chunked(4).forEach { rowColors ->
                 Row(Modifier.fillMaxWidth()) {
                     rowColors.forEach { preset ->
                         val isSelected = (preset and 0xFFFFFF) == (color and 0xFFFFFF)
+                        val swatch = Color(preset)
                         Box(
                             Modifier
                                 .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(3.dp)
-                                .clip(CircleShape)
+                                .height(56.dp)
+                                .padding(4.dp)
+                                .clip(SwatchShape)
                                 .then(
-                                    if (isSelected) Modifier.border(2.dp, palette.accent, CircleShape) else Modifier
+                                    if (isSelected) Modifier.border(2.dp, palette.accent, SwatchShape) else Modifier
                                 )
-                                .clickable {
+                                .selectable(selected = isSelected, role = Role.RadioButton) {
                                     setColor(preset)
                                     hexText = colorHex(preset).removePrefix("#")
                                 }
-                                .padding(if (isSelected) 5.dp else 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            ColorSwatch(Color(preset), 40.dp, Modifier.fillMaxSize())
-                        }
+                                .padding(if (isSelected) 5.dp else 0.dp)
+                                .clip(if (isSelected) InnerSwatchShape else SwatchShape)
+                                .background(swatch)
+                                .then(
+                                    if (lowContrast(swatch, palette.surface)) {
+                                        Modifier.border(1.dp, palette.textSecondary.copy(alpha = 0.5f), SwatchShape)
+                                    } else Modifier
+                                )
+                        )
                     }
                 }
             }

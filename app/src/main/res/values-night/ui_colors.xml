@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- aLauncher surfaces outside settings (dialogs, toasts, pickers), dark plum theme.
+         Mirrors DarkSettingsPalette in style/Color.kt. -->
+    <color name="ui_background">#120E1A</color>
+    <color name="ui_surface">#1E1826</color>
+    <color name="ui_elevated">#2A2333</color>
+    <color name="ui_accent">#E4B9E2</color>
+    <color name="ui_on_accent">#3B1830</color>
+    <color name="ui_text">#EDE0EA</color>
+    <color name="ui_text_secondary">#B8A9B8</color>
+    <color name="ui_danger">#FF8A9A</color>
+    <color name="ui_ripple">#29E4B9E2</color>
+</resources>

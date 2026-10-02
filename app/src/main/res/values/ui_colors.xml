@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- aLauncher surfaces outside settings (dialogs, toasts, pickers), light theme.
+         Mirrors LightSettingsPalette in style/Color.kt. -->
+    <color name="ui_background">#FBF6FA</color>
+    <color name="ui_surface">#FFFFFF</color>
+    <color name="ui_elevated">#F1E6F0</color>
+    <color name="ui_accent">#8E4A8A</color>
+    <color name="ui_on_accent">#FFFFFF</color>
+    <color name="ui_text">#1E1826</color>
+    <color name="ui_text_secondary">#6B5C6B</color>
+    <color name="ui_danger">#B3261E</color>
+    <color name="ui_ripple">#298E4A8A</color>
+</resources>

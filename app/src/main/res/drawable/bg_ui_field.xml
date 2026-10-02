@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rounded input field on the plum surfaces (inline rename/tag, hex input) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ui_elevated" />
+    <corners android:radius="26dp" />
+</shape>

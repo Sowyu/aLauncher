@@ -89,17 +89,36 @@
                 android:textSize="16sp"
                 android:visibility="gone" />
 
+            <!-- Picker modes only: "Choose an app" / "Hidden apps" -->
+            <com.github.creativecodecat.components.views.FontAppCompatTextView
+                android:id="@+id/pickerTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="24dp"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="8dp"
+                android:accessibilityHeading="true"
+                android:maxLines="2"
+                android:textColor="@color/ui_text"
+                android:textSize="32sp"
+                android:visibility="gone" />
+
             <com.github.creativecodecat.components.views.FontAppCompatTextView
                 android:id="@+id/clearHomeButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:minHeight="48dp"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginVertical="8dp"
+                android:background="@drawable/bg_ui_row"
+                android:drawablePadding="16dp"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="24dp"
-                android:textSize="16sp"
+                android:paddingHorizontal="20dp"
+                android:text="@string/picker_clear_slot"
+                android:textColor="@color/ui_text"
+                android:textSize="17sp"
                 android:visibility="gone"
-                app:theme="@style/AppSearchText" />
+                app:drawableStartCompat="@drawable/ic_close"
+                app:drawableTint="@color/ui_accent" />
         </LinearLayout>
 
         <!-- Search sits at the bottom, in thumb reach, and rides on top of the keyboard -->

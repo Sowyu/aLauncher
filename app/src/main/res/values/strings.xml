@@ -235,7 +235,7 @@
     <string name="advanced_settings_app_info_title">App Info</string>
     <string name="advanced_settings_app_info_description">%1$s</string>
 
-    <string name="advanced_settings_set_as_default_launcher">Set as Default Launcher</string>
+    <string name="advanced_settings_set_as_default_launcher">Set as default launcher</string>
     <string name="advanced_settings_set_as_default_launcher_description">Make Multi Launcher your default home app.</string>
     <string name="advanced_settings_change_default_launcher">Change Default Launcher</string>
     <string name="advanced_settings_change_default_launcher_description">Choose a different launcher as your default.</string>
@@ -307,13 +307,13 @@
     <string name="settings_long_threshold">Long Swipe Threshold</string>
 
     <!-- App Page Strings -->
-    <string name="hidden_apps">Hidden Apps</string>
-    <string name="favorite_apps">Favorite Apps</string>
+    <string name="hidden_apps">Hidden apps</string>
+    <string name="favorite_apps">Favorite apps</string>
     <string name="clear_home_app">Clear Home App</string>
 
     <!-- Favorite management strings -->
-    <string name="add_app">Add App</string>
-    <string name="remove_app">Remove App</string>
+    <string name="add_app">Add app</string>
+    <string name="remove_app">Remove app</string>
     <string name="max_apps_reached">Maximum number of home apps reached</string>
     <string name="min_apps_reached">Minimum number of home apps reached</string>
     <string name="no_apps_to_remove">No apps to remove</string>

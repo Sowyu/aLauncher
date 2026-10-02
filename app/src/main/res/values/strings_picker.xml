@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App picker (home slot and gesture app selection) -->
+    <string name="picker_title">Choose an app</string>
+    <string name="picker_clear_slot">Clear slot</string>
+</resources>
