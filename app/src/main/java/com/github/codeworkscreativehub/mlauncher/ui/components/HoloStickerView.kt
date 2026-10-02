@@ -477,59 +477,41 @@ class HoloStickerView @JvmOverloads constructor(
                 float c = cos(spin); float s = sin(spin);
                 float2 L = float2(c * tilt.x - s * tilt.y, s * tilt.x + c * tilt.y);
 
-                // Diffraction foil: grating direction fixed to the card (smoothly warped);
-                // colour = fixed structure + view angle. The structure never moves.
-                float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
-                float2 g = float2(cos(ang), sin(ang));
-                float phase = dot(uv, g) * 1.6 + dot(L, g) * 0.3 + noise(uv * 5.0) * 0.15;  // colours drift a little with tilt
-                half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
+                // Cracked-ice mosaic (like the reverse-holo card): irregular shards fixed to
+                // the sticker, each reflecting a slightly different shade.
+                float2 q = uv * 4.5;
+                float2 qi = floor(q);
+                float best = 9.0; float2 bestCell = float2(0.0);
+                for (int yy = -1; yy <= 1; yy++) {
+                    for (int xx = -1; xx <= 1; xx++) {
+                        float2 cell = qi + float2(float(xx), float(yy));
+                        float2 pt = cell + float2(hash(cell), hash(cell + 5.3)) * 0.9 + 0.05;
+                        float d = length(q - pt);
+                        if (d < best) { best = d; bestCell = cell; }
+                    }
+                }
+                float shardHue = (hash(bestCell + 2.7) - 0.5) * 0.3;
+                float shardLum = 0.72 + 0.45 * hash(bestCell + 9.1);
+                // Each shard is a tiny mirror at its own angle: it brightens when the tilt suits it
+                float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
+                float facing = 0.75 + 0.25 * clamp(dot(normalize(L + 1e-4), facet), -1.0, 1.0) * clamp(length(L), 0.0, 1.0);
 
-                // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
-                float swirl = sin((uv.x * 0.8 + uv.y) * 18.0 + noise(uv * 3.0) * 6.0) * 0.5 + 0.5;
-                float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
+                // Broad colour wash across the whole sticker; tilt changes its colour
+                // (purple -> red -> blue -> pink -> gold), drifting only a little.
+                float wash = dot(uv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9
+                           + noise(uv * 1.6 + L * 0.15) * 0.25;
+                half3 col = mix(spectrum(wash + shardHue), half3(1.0), 0.25) * shardLum * facing;
 
-                // Moving reflection of the light; foil is brightest where it catches
-                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.2;
-                float2 dh = uv - hc;
-                float sheen = exp(-dot(dh, dh) * 2.4);
-                float bright = 0.6 + 0.25 * sheen;
+                // Hairline striations, barely there
+                float stria = 0.96 + 0.04 * sin(local.y * 1.6);
+                col *= stria;
 
-                // A few large glitter flakes fixed in place that flash when the angle matches
-                float2 cellUv = uv * 14.0;
-                float2 cell = floor(cellUv);
-                float2 f = fract(cellUv) - 0.5;
-                float r = hash(cell);
-                float2 facet = float2(hash(cell + 3.1), hash(cell + 7.7)) * 2.2 - 1.1;
-                float match = clamp(1.0 - length(L - facet) * 1.4, 0.0, 1.0);
-                float flake = step(0.7, r) * smoothstep(0.32, 0.0, length(f)) * match * match;
-
-                // Light streaks: on V cards the reflection off the ridged foil shows as long
-                // diagonal bright bands with a rainbow across each, sweeping as the card tilts.
-                float2 sd = normalize(float2(1.0, -1.15));          // across the streaks
-                float across = dot(uv, sd) * 2.6 - dot(L, sd) * 0.35;  // streaks drift a little
-                float bandId = floor(across);
-                float bf = fract(across);
-                float w = 0.26 + 0.2 * hash(float2(bandId, 1.7));   // each streak its own width
-                float centre = 0.5 + (hash(float2(bandId, 4.2)) - 0.5) * 0.3;
-                float streak = smoothstep(w, 0.0, abs(bf - centre));
-                streak *= 0.55 + 0.45 * hash(float2(bandId, 9.1));    // and its own brightness
-                // Rainbow across each streak's width, plus the diffraction colour
-                half3 streakCol = mix(spectrum((bf - centre) / max(w, 0.05) * 0.5 + phase * 0.3), half3(1.0), 0.25);
-
-                // Ridges only show where light hits them: fine glints inside the streaks
-                float period = max(size / 30.0, 6.0);
-                float zig = abs(fract(local.x / (period * 2.0)) - 0.5) * 2.0 * period;
-                float ridge = 0.5 + 0.5 * cos((local.y + zig) / period * 6.2831853);
-                float glint = streak * (0.7 + 0.6 * ridge);
-
-                // Tilt reveals and hides the same foil: faint at rest, full when tilted
-                float reveal = 0.18 + 0.82 * smoothstep(0.08, 0.85, length(L));
-                half3 foil = rb * relief * bright + streakCol * glint * 0.8;
-                float k = strength * reveal * (0.6 * bright + 0.55 * streak) * (artW * 0.9 + ringW * 0.75);
+                // Tilt reveals the foil; faint at rest
+                float reveal = 0.6 + 0.4 * smoothstep(0.05, 0.8, length(L));
+                float k = strength * reveal * (artW * 0.85 + ringW * 0.7);
                 half3 rgb = base.rgb / max(base.a, 0.001);
-                half3 scr = 1.0 - (1.0 - rgb) * (1.0 - clamp(foil * k, 0.0, 1.0));
-                half3 tint = mix(scr, scr * clamp(foil, 0.0, 1.0) * 1.5, 0.2 * k);
-                half3 outRgb = clamp(tint + half3(flake * 1.0 * strength * reveal * artW), 0.0, 1.0);
+                half3 scr = 1.0 - (1.0 - rgb) * (1.0 - col * k);
+                half3 outRgb = clamp(mix(scr, scr * col * 1.35, 0.25 * k), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
