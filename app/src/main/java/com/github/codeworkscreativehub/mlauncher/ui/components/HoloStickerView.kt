@@ -358,7 +358,9 @@ class HoloStickerView @JvmOverloads constructor(
         val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
         val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
         val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
-        val strength = ((0.7f + 0.15f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
+        // Slider: 0..80% scales up to the default look, 80..100% pushes up to ~1.8x (very strong)
+        val scale = if (holoIntensity <= 0.8f) holoIntensity / 0.8f else 1f + (holoIntensity - 0.8f) * 4f
+        val strength = ((0.7f + 0.15f * motion) * scale).coerceIn(0f, 2f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && foilShader != null) {
             drawFoilShader(canvas, bmp, art, ring, left, top, size, tx, ty, strength)
         } else {
@@ -520,11 +522,11 @@ class HoloStickerView @JvmOverloads constructor(
                 col *= stria;
 
                 // Tilt reveals the foil; faint at rest
-                float reveal = 0.2 + 0.55 * smoothstep(0.05, 0.8, length(L));
-                float k = clamp(strength * reveal, 0.0, 1.0) * (artW * 0.8 + ringW * 0.7);
+                float reveal = 0.5 + 0.5 * smoothstep(0.05, 0.8, length(L));
+                float k = clamp(strength * reveal * 1.15, 0.0, 1.0) * (artW * 0.9 + ringW * 0.75);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - col * k);
-                half3 outRgb = clamp(mix(scr, scr * col * 1.3, 0.25 * k), 0.0, 1.0);
+                half3 outRgb = clamp(mix(scr, scr * col * 1.4, 0.35 * k), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
