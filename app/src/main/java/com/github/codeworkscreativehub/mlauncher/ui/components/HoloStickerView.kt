@@ -506,10 +506,10 @@ class HoloStickerView @JvmOverloads constructor(
                 // Light streaks: on V cards the reflection off the ridged foil shows as long
                 // diagonal bright bands with a rainbow across each, sweeping as the card tilts.
                 float2 sd = normalize(float2(1.0, -1.15));          // across the streaks
-                float across = dot(uv, sd) * 4.6 - dot(L, sd) * 2.4 - (L.x + L.y) * 0.35;
+                float across = dot(uv, sd) * 2.6 - dot(L, sd) * 2.4 - (L.x + L.y) * 0.35;
                 float bandId = floor(across);
                 float bf = fract(across);
-                float w = 0.16 + 0.22 * hash(float2(bandId, 1.7));   // each streak its own width
+                float w = 0.26 + 0.2 * hash(float2(bandId, 1.7));   // each streak its own width
                 float centre = 0.5 + (hash(float2(bandId, 4.2)) - 0.5) * 0.3;
                 float streak = smoothstep(w, 0.0, abs(bf - centre));
                 streak *= 0.55 + 0.45 * hash(float2(bandId, 9.1));    // and its own brightness
@@ -522,8 +522,8 @@ class HoloStickerView @JvmOverloads constructor(
                 float ridge = 0.5 + 0.5 * cos((local.y + zig) / period * 6.2831853);
                 float glint = streak * (0.7 + 0.6 * ridge);
 
-                half3 foil = rb * relief * bright * 0.6 + streakCol * glint * 1.15;
-                float k = strength * (0.35 * bright + 0.95 * streak) * (artW * 0.95 + ringW * 0.8);
+                half3 foil = rb * relief * bright + streakCol * glint * 1.03;
+                float k = strength * (0.85 * bright + 0.85 * streak) * (artW * 0.9 + ringW * 0.75);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - clamp(foil * k, 0.0, 1.0));
                 half3 tint = mix(scr, scr * clamp(foil, 0.0, 1.0) * 1.5, 0.2 * k);
