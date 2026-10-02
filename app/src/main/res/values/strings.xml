@@ -392,6 +392,10 @@
     <string name="rename">Rename</string>
     <string name="tag">Tag</string>
     <string name="info">Info</string>
+    <string name="app_menu_add_tag">Add tag</string>
+    <string name="app_menu_edit_tag">Edit tag</string>
+    <string name="app_menu_app_info">App info</string>
+    <string name="app_menu_uninstall">Uninstall</string>
     <string name="okay">Okay</string>
     <string name="apply">Apply</string>
     <string name="reset">Reset</string>

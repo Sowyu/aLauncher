@@ -5,7 +5,6 @@
 package com.github.codeworkscreativehub.mlauncher.ui.adapter
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.UserHandle
@@ -47,6 +46,7 @@ import com.github.codeworkscreativehub.mlauncher.helper.dp2px
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.getSystemIcons
 import com.github.codeworkscreativehub.mlauncher.helper.utils.BiometricHelper
+import com.github.codeworkscreativehub.mlauncher.ui.components.AppContextMenu
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -69,7 +69,10 @@ class AppDrawerAdapter(
 
     private lateinit var prefs: Prefs
     private var appFilter = createAppFilter()
-    private var openedContextMenuPosition = RecyclerView.NO_POSITION
+    private var contextMenu: AppContextMenu? = null
+
+    /** Row showing the inline rename/tag field, closed again when the list scrolls. */
+    private var editingPosition = RecyclerView.NO_POSITION
     var appsList: MutableList<AppListItem> = mutableListOf()
     var appFilteredList: MutableList<AppListItem> = mutableListOf()
     private lateinit var binding: AdapterAppDrawerBinding
@@ -120,56 +123,6 @@ class AppDrawerAdapter(
 
         // Pass icon cache and loading scope to bind
         holder.bind(flag, gravity, appModel, appClickListener, appInfoListener, appDeleteListener, iconCache, iconLoadingScope, prefs, searching)
-
-        holder.appHide.setOnClickListener {
-            AppLogger.d("AppListDebug", "❌ Hide clicked for ${appModel.activityLabel} (${appModel.activityPackage})")
-
-            appFilteredList.removeAt(holder.absoluteAdapterPosition)
-            appsList.remove(appModel)
-            notifyItemRemoved(holder.absoluteAdapterPosition)
-
-            AppLogger.d("AppListDebug", "📤 notifyItemRemoved at ${holder.absoluteAdapterPosition}")
-            appHideListener(flag, appModel)
-        }
-
-        holder.appLock.setOnClickListener {
-            val appName = appModel.activityPackage
-            val currentLockedApps = prefs.lockedApps
-
-            if (currentLockedApps.contains(appName)) {
-                biometricHelper.startBiometricAuth(appModel, object : BiometricHelper.CallbackApp {
-                    override fun onAuthenticationSucceeded(appListItem: AppListItem) {
-                        AppLogger.d("AppListDebug", "🔓 Auth succeeded for $appName - unlocking")
-                        holder.appLock.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.padlock_off, 0, 0)
-                        holder.appLock.text = getLocalizedString(R.string.lock)
-                        currentLockedApps.remove(appName)
-                        prefs.lockedApps = currentLockedApps
-                        AppLogger.d("AppListDebug", "🔐 Updated lockedApps: $currentLockedApps")
-                    }
-
-                    override fun onAuthenticationFailed() {
-                        AppLogger.e("Authentication", getLocalizedString(R.string.text_authentication_failed))
-                    }
-
-                    override fun onAuthenticationError(errorCode: Int, errorMessage: CharSequence?) {
-                        val msg = when (errorCode) {
-                            BiometricPrompt.ERROR_USER_CANCELED -> getLocalizedString(R.string.text_authentication_cancel)
-                            else -> getLocalizedString(R.string.text_authentication_error).format(errorMessage, errorCode)
-                        }
-                        AppLogger.e("Authentication", msg)
-                    }
-                })
-            } else {
-                AppLogger.d("AppListDebug", "🔒 Locking $appName")
-                holder.appLock.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.padlock, 0, 0)
-                holder.appLock.text = getLocalizedString(R.string.unlock)
-                currentLockedApps.add(appName)
-            }
-
-            // Update the lockedApps value (save the updated set back to prefs)
-            prefs.lockedApps = currentLockedApps
-            AppLogger.d("lockedApps", prefs.lockedApps.toString())
-        }
 
         holder.appSaveRename.setOnClickListener {
             val currentText = holder.appRenameEdit.text.toString().trim()
@@ -323,25 +276,16 @@ class AppDrawerAdapter(
     inner class ViewHolder(
         itemView: AdapterAppDrawerBinding
     ) : RecyclerView.ViewHolder(itemView.root) {
-        val appHide: TextView = itemView.appHide
-        val appLock: TextView = itemView.appLock
         val appRenameEdit: EditText = itemView.appRenameEdit
         val appSaveRename: ImageView = itemView.appSaveRename
         val appSaveCancel: ImageView = itemView.appSaveCancel
         val appTagEdit: EditText = itemView.appTagEdit
         val appSaveTag: TextView = itemView.appSaveTag
 
-        private val appHideLayout: LinearLayout = itemView.appHideLayout
         private val appRenameLayout: LinearLayout = itemView.appRenameLayout
         private val appTagLayout: LinearLayout = itemView.appTagLayout
-        private val appRename: TextView = itemView.appRename
-        private val appTag: TextView = itemView.appTag
-        private val appPin: TextView = itemView.appPin
         private val appTitle: TextView = itemView.appTitle
         private val appTitleFrame: FrameLayout = itemView.appTitleFrame
-        private val appClose: TextView = itemView.appClose
-        private val appInfo: TextView = itemView.appInfo
-        private val appDelete: TextView = itemView.appDelete
 
         @SuppressLint("RtlHardcoded", "NewApi")
         fun bind(
@@ -357,80 +301,10 @@ class AppDrawerAdapter(
             searching: Boolean
         ) = with(itemView) {
 
-            val contextMenuFlags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", "0011111")
-
-            // ----------------------------
-            // 1️⃣ Hide optional layouts (state-driven)
-            appHideLayout.isVisible = absoluteAdapterPosition == openedContextMenuPosition
             appRenameLayout.isVisible = false
             appTagLayout.isVisible = false
 
             val packageName = appListItem.activityPackage
-
-            // ----------------------------
-            // 2️⃣ Precompute lock/pin/hide state
-            val isLocked = prefs.lockedApps.contains(packageName)
-            val isPinned = prefs.pinnedApps.contains(packageName)
-            val isHidden = (flag == AppDrawerFlag.HiddenApps)
-
-            // ----------------------------
-            // 3️⃣ Setup lock/pin/hide buttons
-            appLock.apply {
-                isVisible = contextMenuFlags[1]
-                setCompoundDrawablesWithIntrinsicBounds(
-                    0,
-                    if (isLocked) R.drawable.padlock else R.drawable.padlock_off,
-                    0,
-                    0
-                )
-                text = if (isLocked) getLocalizedString(R.string.unlock) else getLocalizedString(R.string.lock)
-            }
-
-            appPin.apply {
-                isVisible = contextMenuFlags[0]
-                setCompoundDrawablesWithIntrinsicBounds(
-                    0,
-                    if (isPinned) R.drawable.pin_off else R.drawable.pin,
-                    0,
-                    0
-                )
-                text = if (isPinned) getLocalizedString(R.string.unpin) else getLocalizedString(R.string.pin)
-            }
-
-            appHide.apply {
-                isVisible = contextMenuFlags[2]
-                setCompoundDrawablesWithIntrinsicBounds(
-                    0,
-                    if (isHidden) R.drawable.visibility else R.drawable.visibility_off,
-                    0,
-                    0
-                )
-                text = if (isHidden) getLocalizedString(R.string.show) else getLocalizedString(R.string.hide)
-            }
-
-            // ----------------------------
-            // 4️⃣ Setup rename/tag layouts
-            appRename.apply {
-                isVisible = contextMenuFlags[3]
-                setOnClickListener {
-                    appRenameEdit.hint = appListItem.activityLabel
-                    appRenameLayout.isVisible = true
-                    appHideLayout.isVisible = false
-                    appRenameEdit.showKeyboard()
-                    appRenameEdit.imeOptions = EditorInfo.IME_ACTION_DONE
-                }
-            }
-
-            appTag.apply {
-                isVisible = contextMenuFlags[4]
-                setOnClickListener {
-                    appTagEdit.hint = appListItem.activityLabel
-                    appTagLayout.isVisible = true
-                    appHideLayout.isVisible = false
-                    appTagEdit.showKeyboard()
-                    appTagEdit.imeOptions = EditorInfo.IME_ACTION_DONE
-                }
-            }
 
             appRenameEdit.apply {
                 val activityLabel = prefs.getAppAlias(appListItem.activityPackage).takeIf { it.isNotBlank() }
@@ -449,16 +323,6 @@ class AppDrawerAdapter(
                         else getLocalizedString(R.string.tag)
                     }
                 })
-            }
-
-            appClose.setOnClickListener {
-                appHideLayout.isVisible = false
-                openedContextMenuPosition = RecyclerView.NO_POSITION
-
-                val sidebarContainer = (context as? Activity)
-                    ?.findViewById<View>(R.id.sidebar_container)
-
-                sidebarContainer?.isVisible = prefs.showAZSidebar
             }
 
             // ----------------------------
@@ -484,17 +348,7 @@ class AppDrawerAdapter(
             ) {
 
                 iconLoadingScope.launch {
-                    val icon = withContext(Dispatchers.IO) {
-                        val nonNullDrawable: Drawable = getSafeAppIcon(
-                            context = context,
-                            packageName = packageName,
-                            useIconPack = prefs.customIconPackAppList.isNotEmpty() &&
-                                    prefs.iconPackAppList == Constants.IconPacks.Custom,
-                            iconPackTarget = IconCacheTarget.APP_LIST,
-                            activityClass = appListItem.activityClass
-                        )
-                        getSystemIcons(context, prefs, IconCacheTarget.APP_LIST, nonNullDrawable) ?: nonNullDrawable
-                    }
+                    val icon = loadIcon(appListItem)
 
                     // 2. Update cache (Ensure iconCache is thread-safe, e.g., ConcurrentHashMap)
                     iconCache[packageName] = icon
@@ -509,59 +363,131 @@ class AppDrawerAdapter(
 
             // ----------------------------
             // 7️⃣ Click listeners
-            val sidebarContainer = (context as? Activity)?.findViewById<View>(R.id.sidebar_container)
             appTitleFrame.apply {
                 setOnClickListener { appClickListener(appListItem) }
                 setOnLongClickListener {
-                    val openApp = flag == AppDrawerFlag.LaunchApp || flag == AppDrawerFlag.HiddenApps
-                    if (openApp) {
-                        try {
-                            appDelete.alpha = if (context.isSystemApp(packageName)) 0.3f else 1f
-                            val currentPos = absoluteAdapterPosition
-
-                            // Close previously opened menu
-                            if (openedContextMenuPosition != RecyclerView.NO_POSITION &&
-                                openedContextMenuPosition != currentPos
-                            ) {
-                                notifyItemChanged(openedContextMenuPosition)
-                            }
-
-                            // Open this one
-                            appHideLayout.isVisible = true
-                            sidebarContainer?.isVisible = false
-                            openedContextMenuPosition = currentPos
-
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                    if (flag == AppDrawerFlag.LaunchApp || flag == AppDrawerFlag.HiddenApps) {
+                        showContextMenu(appListItem, flag, prefs)
                     }
                     true
                 }
             }
+        }
 
-            appInfo.setOnClickListener { appInfoListener(appListItem) }
-            appDelete.setOnClickListener { appDeleteListener(appListItem) }
+        private fun showContextMenu(app: AppListItem, flag: AppDrawerFlag, prefs: Prefs) {
+            contextMenu?.dismiss(animate = false)
+            val activity = fragment.activity ?: return
+            val packageName = app.activityPackage
+            val defaults = "0011111"
+            val flags = prefs.getMenuFlags("CONTEXT_MENU_FLAGS", defaults)
+            fun enabled(i: Int) = flags.getOrElse(i) { defaults[i] == '1' }
 
-            // ----------------------------
-            // 8️⃣ Lock/Pin toggle actions
-            appLock.setOnClickListener {
-                val updated = prefs.lockedApps.toMutableSet()
-                if (isLocked) updated.remove(packageName) else updated.add(packageName)
-                prefs.lockedApps = updated
+            val isLocked = prefs.lockedApps.contains(packageName)
+            val isPinned = prefs.pinnedApps.contains(packageName)
+            val isHidden = flag == AppDrawerFlag.HiddenApps
+            val actions = buildList {
+                if (enabled(0)) add(
+                    AppContextMenu.Action(
+                        if (isPinned) R.drawable.pin_off else R.drawable.pin,
+                        getLocalizedString(if (isPinned) R.string.unpin else R.string.pin)
+                    ) {
+                        val updated = prefs.pinnedApps.toMutableSet()
+                        if (isPinned) updated.remove(packageName) else updated.add(packageName)
+                        prefs.pinnedApps = updated
+                    })
+                if (enabled(1)) add(
+                    AppContextMenu.Action(
+                        if (isLocked) R.drawable.padlock else R.drawable.padlock_off,
+                        getLocalizedString(if (isLocked) R.string.unlock else R.string.lock)
+                    ) { toggleLock(app, prefs) })
+                if (enabled(2)) add(
+                    AppContextMenu.Action(
+                        if (isHidden) R.drawable.visibility else R.drawable.visibility_off,
+                        getLocalizedString(if (isHidden) R.string.show else R.string.hide)
+                    ) { hideApp(app) })
+                if (enabled(3)) add(AppContextMenu.Action(R.drawable.ic_rename, getLocalizedString(R.string.rename)) {
+                    appRenameEdit.hint = app.activityLabel
+                    openInlineEditor(appRenameLayout, appRenameEdit)
+                })
+                if (enabled(4)) add(
+                    AppContextMenu.Action(
+                        R.drawable.ic_tag,
+                        getLocalizedString(if (app.customTag.isBlank()) R.string.app_menu_add_tag else R.string.app_menu_edit_tag)
+                    ) {
+                        appTagEdit.hint = app.activityLabel
+                        openInlineEditor(appTagLayout, appTagEdit)
+                    })
+                if (enabled(5)) add(AppContextMenu.Action(R.drawable.ic_info, getLocalizedString(R.string.app_menu_app_info)) {
+                    appInfoListener(app)
+                })
+                if (enabled(6)) add(
+                    AppContextMenu.Action(
+                        R.drawable.ic_delete,
+                        getLocalizedString(R.string.app_menu_uninstall),
+                        destructive = true,
+                        dimmed = context.isSystemApp(packageName)
+                    ) { appDeleteListener(app) })
             }
-            appPin.setOnClickListener {
-                val updated = prefs.pinnedApps.toMutableSet()
-                if (isPinned) updated.remove(packageName) else updated.add(packageName)
-                prefs.pinnedApps = updated
-            }
+            if (actions.isEmpty()) return
 
-            itemView.setOnClickListener {
-                if (openedContextMenuPosition != RecyclerView.NO_POSITION &&
-                    openedContextMenuPosition != absoluteAdapterPosition
-                ) {
-                    this@AppDrawerAdapter.closeOpenedMenu()
+            val title = prefs.getAppAlias(packageName).takeIf { it.isNotBlank() } ?: app.activityLabel
+            val menu = AppContextMenu(activity, appTitle, gravity, title, packageName, actions) {
+                contextMenu = null
+            }
+            contextMenu = menu
+            val cached = iconCache[packageName]
+            menu.setIcon(cached ?: AppCompatResources.getDrawable(context, R.drawable.ic_default_app))
+            if (cached == null) iconLoadingScope.launch {
+                val icon = loadIcon(app)
+                iconCache[packageName] = icon
+                menu.setIcon(icon)
+            }
+            menu.show()
+        }
+
+        private fun openInlineEditor(layout: View, edit: EditText) {
+            layout.isVisible = true
+            editingPosition = bindingAdapterPosition
+            edit.imeOptions = EditorInfo.IME_ACTION_DONE
+            edit.showKeyboard()
+        }
+
+        private fun hideApp(app: AppListItem) {
+            val pos = bindingAdapterPosition
+            if (pos == RecyclerView.NO_POSITION) return
+            AppLogger.d("AppListDebug", "❌ Hide clicked for ${app.activityLabel} (${app.activityPackage})")
+            appFilteredList.removeAt(pos)
+            appsList.remove(app)
+            notifyItemRemoved(pos)
+            appHideListener(flag, app)
+        }
+
+        private fun toggleLock(app: AppListItem, prefs: Prefs) {
+            val packageName = app.activityPackage
+            val locked = prefs.lockedApps.toMutableSet()
+            if (!locked.contains(packageName)) {
+                locked.add(packageName)
+                prefs.lockedApps = locked
+                return
+            }
+            // Unlocking needs the user to authenticate first
+            biometricHelper.startBiometricAuth(app, object : BiometricHelper.CallbackApp {
+                override fun onAuthenticationSucceeded(appListItem: AppListItem) {
+                    prefs.lockedApps = prefs.lockedApps.toMutableSet().apply { remove(packageName) }
                 }
-            }
+
+                override fun onAuthenticationFailed() {
+                    AppLogger.e("Authentication", getLocalizedString(R.string.text_authentication_failed))
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errorMessage: CharSequence?) {
+                    val msg = when (errorCode) {
+                        BiometricPrompt.ERROR_USER_CANCELED -> getLocalizedString(R.string.text_authentication_cancel)
+                        else -> getLocalizedString(R.string.text_authentication_error).format(errorMessage, errorCode)
+                    }
+                    AppLogger.e("Authentication", msg)
+                }
+            })
         }
 
 
@@ -606,12 +532,23 @@ class AppDrawerAdapter(
     }
 
     fun closeOpenedMenu() {
-        if (openedContextMenuPosition != RecyclerView.NO_POSITION) {
-            val oldPosition = openedContextMenuPosition
-            openedContextMenuPosition = RecyclerView.NO_POSITION
-            notifyItemChanged(oldPosition)
-            // Redraw all visible items just in case
-            notifyItemRangeChanged(0, itemCount)
+        contextMenu?.dismiss()
+        if (editingPosition != RecyclerView.NO_POSITION) {
+            val pos = editingPosition
+            editingPosition = RecyclerView.NO_POSITION
+            notifyItemChanged(pos)
         }
+    }
+
+    private suspend fun loadIcon(app: AppListItem): Drawable = withContext(Dispatchers.IO) {
+        val icon = getSafeAppIcon(
+            context = context,
+            packageName = app.activityPackage,
+            useIconPack = prefs.customIconPackAppList.isNotEmpty() &&
+                    prefs.iconPackAppList == Constants.IconPacks.Custom,
+            iconPackTarget = IconCacheTarget.APP_LIST,
+            activityClass = app.activityClass
+        )
+        getSystemIcons(context, prefs, IconCacheTarget.APP_LIST, icon) ?: icon
     }
 }

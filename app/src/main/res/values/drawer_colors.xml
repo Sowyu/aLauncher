@@ -8,4 +8,15 @@
     <!-- Tint over the frosted pill (~45%) -->
     <color name="drawer_search_tint">#73FFFFFF</color>
     <color name="home_edit_pill_text">#8E4A8A</color>
+
+    <!-- Long-press app menu -->
+    <color name="app_menu_bg">#F5FFFFFF</color>
+    <color name="app_menu_text">#1E1826</color>
+    <color name="app_menu_text_secondary">#6B5C6B</color>
+    <color name="app_menu_accent">#8E4A8A</color>
+    <color name="app_menu_danger">#B3261E</color>
+    <color name="app_menu_divider">#EDE3EC</color>
+    <color name="app_menu_ripple">#298E4A8A</color>
+    <color name="app_menu_highlight">#1F8E4A8A</color>
+    <color name="app_menu_scrim">#26000000</color>
 </resources>
