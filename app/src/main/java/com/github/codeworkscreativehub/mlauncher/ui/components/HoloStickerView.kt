@@ -505,28 +505,32 @@ class HoloStickerView @JvmOverloads constructor(
                 // the sticker, each reflecting a slightly different shade.
                 float2 q = uv * 6.5;
                 float2 qi = floor(q);
-                float best = 9.0; float2 bestCell = float2(0.0);
-                for (int yy = -1; yy <= 1; yy++) {
-                    for (int xx = -1; xx <= 1; xx++) {
+                // Voronoi: nearest and second-nearest seed give clean polygon shards with
+                // straight borders (the border is where both distances are equal)
+                float best = 9.0; float second = 9.0;
+                float2 bestCell = float2(0.0); float2 bestPt = float2(0.0);
+                for (int yy = -2; yy <= 2; yy++) {
+                    for (int xx = -2; xx <= 2; xx++) {
                         float2 cell = qi + float2(float(xx), float(yy));
-                        float2 pt = cell + float2(hash(cell), hash(cell + 5.3)) * 0.9 + 0.05;
+                        float2 pt = cell + 0.15 + float2(hash(cell), hash(cell + 5.3)) * 0.7;
                         float d = length(q - pt);
-                        if (d < best) { best = d; bestCell = cell; }
+                        if (d < best) { second = best; best = d; bestCell = cell; bestPt = pt; }
+                        else if (d < second) { second = d; }
                     }
                 }
+                // Everything below is per shard (from its seed), so each shard is one flat piece
                 float shardHue = (hash(bestCell + 2.7) - 0.5) * 0.3;
                 float shardLum = 0.92 + 0.25 * hash(bestCell + 9.1);
-                // Each shard is a tiny mirror at its own angle: it brightens when the tilt suits it
                 float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
-                float align = smoothstep(1.05, 0.25, length(L - facet * 0.8));  // wide window, flat top
+                float align = smoothstep(1.05, 0.25, length(L - facet * 0.8));
                 float facing = 0.7 + 0.9 * align;
-
-                // Broad colour wash across the whole sticker; tilt changes its colour
-                // (purple -> red -> blue -> pink -> gold), drifting only a little.
-                float wash = dot(uv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9
-                           + noise(uv * 1.6 + L * 0.15) * 0.25;
-                // Lift the darker blues so every shard reads against the pink (even coverage)
+                float2 seedUv = bestPt / 6.5;
+                float wash = dot(seedUv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9;
                 half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.3) * shardLum * facing;
+                // Thin crisp seam between shards (anti-aliased over ~1px)
+                float edgeDist = (second - best) * size / 6.5 * 0.5;
+                float seam = 1.0 - smoothstep(0.4, 1.4, edgeDist);
+                col = mix(col, col * 0.75, seam * 0.6);
 
                 // Hairline striations, barely there
                 float stria = 0.96 + 0.04 * sin(local.y * 1.6);
