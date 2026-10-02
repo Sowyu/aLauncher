@@ -3,4 +3,6 @@
     <item name="home_row_pad" type="id" />
     <item name="home_row_minh" type="id" />
     <item name="home_row_textsize" type="id" />
+    <item name="home_row_content" type="id" />
+    <item name="home_row_fitpad" type="id" />
 </resources>

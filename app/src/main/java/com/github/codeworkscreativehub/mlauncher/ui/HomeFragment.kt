@@ -232,11 +232,20 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         try { fitRowsInner(list) } finally { fitting = false }
     }
 
+    private var lastFitKey = 0L
+
     private fun fitRowsInner(list: ViewGroup) {
         lastFitCount = list.childCount
         val rows = list.children.filter { it.isVisible }.toList()
         if (rows.isEmpty() || list.height == 0) return
-        val available = list.height - list.paddingTop - list.paddingBottom
+        // Only refit when the inputs change (space, row count, or rows not yet fitted): a refit
+        // on every layout used to ping-pong forever (and burn battery)
+        val key = (list.height.toLong() shl 40) or (list.paddingTop.toLong() shl 20) or rows.size.toLong()
+        val fresh = rows.any { it.getTag(R.id.home_row_content) == null }
+        if (key == lastFitKey && !fresh && rows.all { it.paddingTop == it.getTag(R.id.home_row_fitpad) }) return
+        lastFitKey = key
+        // A little extra headroom: the bottom row was still drawn clipped right at the padding edge
+        val available = list.height - list.paddingTop - list.paddingBottom - (12 * resources.displayMetrics.density).toInt()
         // Each row is its text line plus padding (rows also carry a minHeight, which has to go
         // when space is tight, or shrinking the padding does nothing)
         val minPad = (2 * resources.displayMetrics.density).toInt()
@@ -244,20 +253,21 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         for (r in rows) {
             val pad = (r.getTag(R.id.home_row_pad) as? Int) ?: r.paddingTop.also { r.setTag(R.id.home_row_pad, it) }
             val minH = (r.getTag(R.id.home_row_minh) as? Int) ?: rowMinHeight(r).also { r.setTag(R.id.home_row_minh, it) }
-            natural += maxOf(minH, content(r) + 2 * pad)
+            natural += maxOf(minH, rowContent(r) + 2 * pad)
         }
         val tight = natural > available
         val perRow = available / rows.size
         for (r in rows) {
             val pad = r.getTag(R.id.home_row_pad) as Int
             val minH = r.getTag(R.id.home_row_minh) as Int
-            val p = if (!tight) pad else ((perRow - content(r)) / 2).coerceIn(minPad, pad)
+            val p = if (!tight) pad else ((perRow - rowContent(r)) / 2).coerceIn(minPad, pad)
             val mh = if (!tight) minH else 0
             // Only touch it when it actually differs: setting it always requests a layout,
             // and this runs from a layout listener (that loop froze the launcher in build 60)
             if (rowMinHeight(r) != mh) {
                 if (r is android.widget.TextView) r.minHeight = mh else r.minimumHeight = mh
             }
+            r.setTag(R.id.home_row_fitpad, p)
             if (r.paddingTop != p || r.paddingBottom != p) r.setPadding(r.paddingLeft, p, r.paddingRight, p)
         }
         // Undo any text shrink from build 62/63; padding alone is enough
@@ -275,6 +285,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     /** Height of a row without its padding. Uses the text layout, which doesn't depend on
      *  padding, so it's right even before the row is re-measured after a padding change. */
+    private fun rowContent(v: View): Int =
+        (v.getTag(R.id.home_row_content) as? Int) ?: content(v).also { if (it > 0) v.setTag(R.id.home_row_content, it) }
+
     private fun content(v: View): Int {
         val tv = v as? android.widget.TextView
         val textH = tv?.layout?.height

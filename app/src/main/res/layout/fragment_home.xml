@@ -113,7 +113,8 @@
         android:orientation="vertical"
         android:paddingHorizontal="20dp"
         android:paddingTop="100dp"
-        android:paddingBottom="64dp" />
+        android:paddingBottom="64dp"
+        android:clipToPadding="false" />
 
     <!-- Sticker slapped onto the clock; positioned from the clock's bounds in code -->
     <com.github.codeworkscreativehub.mlauncher.ui.components.HoloStickerView
