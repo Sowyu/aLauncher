@@ -481,7 +481,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // colour = fixed structure + view angle. The structure never moves.
                 float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
                 float2 g = float2(cos(ang), sin(ang));
-                float phase = dot(uv, g) * 1.6 + noise(uv * 5.0) * 0.15;  // fixed: tilt never moves the colours
+                float phase = dot(uv, g) * 1.6 + dot(L, g) * 0.3 + noise(uv * 5.0) * 0.15;  // colours drift a little with tilt
                 half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
 
                 // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
@@ -489,7 +489,7 @@ class HoloStickerView @JvmOverloads constructor(
                 float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
 
                 // Moving reflection of the light; foil is brightest where it catches
-                float2 hc = float2(0.5, 0.5);
+                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.2;
                 float2 dh = uv - hc;
                 float sheen = exp(-dot(dh, dh) * 2.4);
                 float bright = 0.6 + 0.25 * sheen;
@@ -506,7 +506,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // Light streaks: on V cards the reflection off the ridged foil shows as long
                 // diagonal bright bands with a rainbow across each, sweeping as the card tilts.
                 float2 sd = normalize(float2(1.0, -1.15));          // across the streaks
-                float across = dot(uv, sd) * 2.6;
+                float across = dot(uv, sd) * 2.6 - dot(L, sd) * 0.35;  // streaks drift a little
                 float bandId = floor(across);
                 float bf = fract(across);
                 float w = 0.26 + 0.2 * hash(float2(bandId, 1.7));   // each streak its own width
