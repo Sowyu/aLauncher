@@ -799,11 +799,15 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.apply {
 
 
+            // The app list no longer takes part in the old bottom-dock stacking: it uses the
+            // full height down to the gesture bar (see keepListBelowClock / fitRows).
+            (homeAppsLayout.layoutParams as ViewGroup.MarginLayoutParams).let {
+                if (it.bottomMargin != 0) { it.bottomMargin = 0; homeAppsLayout.layoutParams = it }
+            }
             val views = listOf(
                 setDefaultLauncher,
                 homeScreenPager,
                 fabLayout,
-                homeAppsLayout
             )
 
             // Check if device is using gesture navigation or 3-button navigation
