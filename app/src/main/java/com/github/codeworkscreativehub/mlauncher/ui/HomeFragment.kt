@@ -219,28 +219,64 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     private var lastFitCount = -1
 
+    private var fitting = false
+
     private fun fitRows() {
+        if (fitting) return
         val list = _binding?.homeAppsLayout ?: return
+        fitting = true
+        try { fitRowsInner(list) } finally { fitting = false }
+    }
+
+    private fun fitRowsInner(list: ViewGroup) {
         lastFitCount = list.childCount
         val rows = list.children.filter { it.isVisible }.toList()
         if (rows.isEmpty() || list.height == 0) return
         val available = list.height - list.paddingTop - list.paddingBottom
-        // Natural padding is remembered in the tag the first time we see a row
+        // Each row is its text line plus padding (rows also carry a minHeight, which has to go
+        // when space is tight, or shrinking the padding does nothing)
+        val minPad = (2 * resources.displayMetrics.density).toInt()
         var natural = 0
-        var textOnly = 0
         for (r in rows) {
             val pad = (r.getTag(R.id.home_row_pad) as? Int) ?: r.paddingTop.also { r.setTag(R.id.home_row_pad, it) }
-            natural += r.height - r.paddingTop - r.paddingBottom + 2 * pad
-            textOnly += r.height - r.paddingTop - r.paddingBottom
+            val minH = (r.getTag(R.id.home_row_minh) as? Int) ?: rowMinHeight(r).also { r.setTag(R.id.home_row_minh, it) }
+            natural += maxOf(minH, content(r) + 2 * pad)
         }
-        val minPad = (2 * resources.displayMetrics.density).toInt()
-        val scale = if (natural <= available) 1f
-            else ((available - textOnly).toFloat() / (natural - textOnly)).coerceIn(0f, 1f)
+        val tight = natural > available
+        val perRow = available / rows.size
         for (r in rows) {
             val pad = r.getTag(R.id.home_row_pad) as Int
-            val p = maxOf(minPad, (pad * scale).toInt())
+            val minH = r.getTag(R.id.home_row_minh) as Int
+            val p = if (!tight) pad else ((perRow - content(r)) / 2).coerceIn(minPad, pad)
+            val mh = if (!tight) minH else 0
+            // Only touch it when it actually differs: setting it always requests a layout,
+            // and this runs from a layout listener (that loop froze the launcher in build 60)
+            if (rowMinHeight(r) != mh) {
+                if (r is android.widget.TextView) r.minHeight = mh else r.minimumHeight = mh
+            }
             if (r.paddingTop != p || r.paddingBottom != p) r.setPadding(r.paddingLeft, p, r.paddingRight, p)
         }
+        // Undo any text shrink from build 62/63; padding alone is enough
+        for (tv in rows.filterIsInstance<android.widget.TextView>()) {
+            val base = tv.getTag(R.id.home_row_textsize) as? Float ?: continue
+            if (kotlin.math.abs(tv.textSize - base) > 0.5f) tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, base)
+        }
+    }
+
+    private fun lineHeightAt(tv: android.widget.TextView, px: Float): Int {
+        val p = android.text.TextPaint(tv.paint).apply { textSize = px }
+        val fm = p.fontMetricsInt
+        return maxOf(fm.descent - fm.ascent, tv.compoundDrawables.filterNotNull().maxOfOrNull { it.bounds.height() } ?: 0)
+    }
+
+    private fun content(v: View): Int = (v.height - v.paddingTop - v.paddingBottom).coerceAtLeast(0)
+
+    private fun rowMinHeight(v: View): Int = (v as? android.widget.TextView)?.minHeight ?: v.minimumHeight
+
+    private fun lineHeight(v: View): Int {
+        val tv = v as? android.widget.TextView ?: return v.height - v.paddingTop - v.paddingBottom
+        val fm = tv.paint.fontMetricsInt
+        return maxOf(fm.descent - fm.ascent, tv.compoundDrawables.filterNotNull().maxOfOrNull { it.bounds.height() } ?: 0)
     }
 
     private var iconGeneration = IconPackHelper.generation

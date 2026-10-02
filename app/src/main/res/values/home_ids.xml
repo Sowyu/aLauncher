@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="home_row_pad" type="id" />
+    <item name="home_row_minh" type="id" />
+    <item name="home_row_textsize" type="id" />
 </resources>
