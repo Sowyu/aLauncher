@@ -403,6 +403,11 @@ class Prefs(val context: Context) {
         get() = getSetting(MONO_ICON_FALLBACK, true)
         set(value) = prefsNormal.edit { putBoolean(MONO_ICON_FALLBACK, value) }
 
+    /** Let the drawer sheet expand from half to full screen (scroll up at the top, or search). */
+    var drawerFullscreen: Boolean
+        get() = getSetting(DRAWER_FULLSCREEN, false)
+        set(value) = prefsNormal.edit { putBoolean(DRAWER_FULLSCREEN, value) }
+
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
         set(value) = prefsNormal.edit { putBoolean(HIDE_SEARCH_VIEW, value) }

@@ -1582,11 +1582,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         drawer.onDrawerOpening()
         if (query != null) drawer.setSearchQuery(query)
         // A sheet over the home screen; typing (a hardware-key search) gets the full screen
-        animateDrawerTo(if (query != null) 1f else SHEET_HALF)
+        animateDrawerTo(if (query != null && prefs.drawerFullscreen) 1f else SHEET_HALF)
     }
 
     override fun expandDrawer() {
-        if (drawerTargetOpen) animateDrawerTo(1f)
+        if (drawerTargetOpen && prefs.drawerFullscreen) animateDrawerTo(1f)
     }
 
     override fun drawerProgressNow(): Float = drawerProgress
@@ -1619,14 +1619,15 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onDrawerDrag(dy: Float) {
         var p = dragStartProgress - dy / drawerTravel()
-        // Opening from home always stops at half, however far or hard you swipe
-        if (dragStartProgress < SHEET_HALF - 0.001f) p = p.coerceAtMost(SHEET_HALF)
+        // Opening from home always stops at half, however far or hard you swipe; without
+        // full screen mode the sheet never goes past half at all
+        if (dragStartProgress < SHEET_HALF - 0.001f || !prefs.drawerFullscreen) p = p.coerceAtMost(SHEET_HALF)
         applyDrawerProgress(p)
     }
 
     override fun onDrawerDragEnd(velocityY: Float) {
         val fling = FLING_DP_PER_S * resources.displayMetrics.density
-        animateDrawerTo(settleTarget(velocityY, drawerProgress, fling, dragStartProgress), velocityY)
+        animateDrawerTo(settleTarget(velocityY, drawerProgress, fling, dragStartProgress, prefs.drawerFullscreen), velocityY)
     }
 
     private fun drawerTravel(): Float {
@@ -1716,7 +1717,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
          * one from closed goes straight to full). Otherwise it follows the drag direction once
          * 35% of the way into the next segment, else returns.
          */
-        internal fun settleTarget(velocityY: Float, progress: Float, flingPx: Float, startProgress: Float): Float {
+        internal fun settleTarget(
+            velocityY: Float, progress: Float, flingPx: Float, startProgress: Float, allowFull: Boolean = true,
+        ): Float {
+            val target = settleAnywhere(velocityY, progress, flingPx, startProgress)
+            return if (allowFull) target else target.coerceAtMost(SHEET_HALF)
+        }
+
+        private fun settleAnywhere(velocityY: Float, progress: Float, flingPx: Float, startProgress: Float): Float {
             val p = progress.coerceIn(0f, 1f)
             if (velocityY < -flingPx) {
                 // Opening from below half never skips past half

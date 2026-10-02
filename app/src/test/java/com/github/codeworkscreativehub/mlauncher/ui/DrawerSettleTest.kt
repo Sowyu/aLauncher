@@ -27,4 +27,11 @@ class DrawerSettleTest {
         assertEquals(SHEET_HALF, settleTarget(4000f, 0.95f, fling, 1f))   // fling down from full
         assertEquals(0f, settleTarget(4000f, 0.5f, fling, SHEET_HALF))    // fling down from half
     }
+
+    @Test
+    fun withoutFullScreenModeTheSheetStaysAtHalf() {
+        assertEquals(SHEET_HALF, settleTarget(-4000f, 0.7f, fling, SHEET_HALF, allowFull = false))
+        assertEquals(SHEET_HALF, settleTarget(0f, 0.9f, fling, SHEET_HALF, allowFull = false))
+        assertEquals(0f, settleTarget(4000f, 0.5f, fling, SHEET_HALF, allowFull = false))
+    }
 }

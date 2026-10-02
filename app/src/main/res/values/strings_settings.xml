@@ -195,4 +195,6 @@
     <string name="st_pinned_apps_count">%1$d of %2$d pinned</string>
     <string name="st_clear_pinned">Clear pinned</string>
     <string name="st_clear_pinned_confirm">Remove every app from the pinned row?</string>
+    <string name="st_drawer_fullscreen">Full screen mode</string>
+    <string name="st_drawer_fullscreen_sub">Scrolling up past the top, or searching, expands the drawer to full screen</string>
 </resources>

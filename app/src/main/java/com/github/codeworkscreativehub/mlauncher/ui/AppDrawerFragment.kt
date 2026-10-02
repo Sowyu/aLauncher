@@ -274,7 +274,11 @@ class AppDrawerFragment : BaseFragment() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
                 // Only a real drag closes it; settling and idle are not the user touching the list
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) appAdapter.closeOpenedMenu()
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    appAdapter.closeOpenedMenu()
+                    listPinnedToTop = false
+                }
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) listPinnedToTop = !recyclerView.canScrollVertically(-1)
                 // Scrolling the list means browsing, not typing
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING && requireContext().hasSoftKeyboard()) {
                     binding.search.hideKeyboard()
@@ -340,7 +344,7 @@ class AppDrawerFragment : BaseFragment() {
 
                 val searching = !newText.isNullOrBlank()
                 // Results get the whole screen
-                if (searching) host?.let { if (it.drawerProgressNow() < 0.999f) it.expandDrawer() }
+                if (searching && prefs.drawerFullscreen) host?.let { if (it.drawerProgressNow() < 0.999f) it.expandDrawer() }
                 // Section letters only make sense for the full, alphabetical list
                 binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
                 showingPinned { pinnedAdapter.setHidden(searching) }
@@ -357,6 +361,13 @@ class AppDrawerFragment : BaseFragment() {
 
     /** How far the sheet's top edge is below the top of the screen, in px (0 = full screen). */
     private var sheetTop = 0f
+
+    /**
+     * The list sits at its top and should stay there while the sheet moves. Padding changes
+     * arrive every frame, faster than layouts, so "can it scroll up" is often stale mid-move.
+     * Cleared as soon as the user scrolls the list themselves.
+     */
+    private var listPinnedToTop = true
     private var drawerStatusTop = 0
     private var lastInsets: WindowInsetsCompat? = null
     private var reapplyTop: (() -> Unit)? = null
@@ -389,7 +400,7 @@ class AppDrawerFragment : BaseFragment() {
                 // As a sheet: room for the grab handle at half; as the sheet slides under the
                 // status bar this blends into the status bar inset + 16dp gap of the full screen
                 val atHalf = handleArea + gap
-                val atFull = statusTop + (16 * resources.displayMetrics.density).toInt()
+                val atFull = statusTop + (44 * resources.displayMetrics.density).toInt()
                 val under = if (statusTop > 0) ((statusTop - sheetTop) / statusTop).coerceIn(0f, 1f) else 1f
                 (atHalf + (atFull - atHalf) * under).toInt()
             } else {
@@ -399,7 +410,7 @@ class AppDrawerFragment : BaseFragment() {
             if (rv.paddingTop != top) {
                 // A layout keeps the first row where it was in pixels, so growing the padding would
                 // push it under the status bar. If the list was at its top, keep it at the top.
-                val wasAtTop = !rv.canScrollVertically(-1)
+                val wasAtTop = listPinnedToTop || !rv.canScrollVertically(-1)
                 rv.updatePadding(top = top)
                 if (wasAtTop) rv.scrollToPosition(0)
             }
@@ -532,11 +543,13 @@ class AppDrawerFragment : BaseFragment() {
                     // Down at the list top: toward half, then closed
                     dy > 0 -> atTop
                     // Up at the list top while not full screen: expand the sheet before scrolling
-                    else -> atTop && h.drawerProgressNow() < 0.999f
+                    // (full screen mode only; otherwise the list just scrolls inside the half sheet)
+                    else -> prefs.drawerFullscreen && atTop && h.drawerProgressNow() < 0.999f
                 }
             }
 
             override fun onDragStart() {
+                if (!binding.appsRecyclerView.canScrollVertically(-1)) listPinnedToTop = true
                 if (requireContext().hasSoftKeyboard()) binding.search.hideKeyboard()
                 if (::appsAdapter.isInitialized) appsAdapter.closeOpenedMenu()
                 host?.onDrawerDragStart()
@@ -603,6 +616,7 @@ class AppDrawerFragment : BaseFragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     fun onDrawerOpening() {
+        listPinnedToTop = true
         if (::viewModel.isInitialized) viewModel.getAppList()
         refreshPinnedRow()
         val rv = _binding?.appsRecyclerView ?: return
