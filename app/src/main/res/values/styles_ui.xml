@@ -58,7 +58,7 @@
     </style>
 
     <!-- Inline rename/tag on a drawer row: a rounded #2A2333 field with a mauve cursor -->
-    <style name="ALauncher.InlineField">
+    <style name="ALauncher.InlineField" parent="">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">52dp</item>
         <item name="android:layout_weight">1</item>
