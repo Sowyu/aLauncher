@@ -103,14 +103,19 @@ class AZSidebarView @JvmOverloads constructor(
         FontManager.register(this)
     }
 
+    /** Space kept free above and below the letters: a fraction of the height, so short strips still fit. */
     val topBottomPaddingPx: Float
-        get() = 180f * density
+        get() = (height * 0.06f).coerceAtMost(48f * density)
+
+    /** Letters shrink when the strip is too short for them, so they never overlap. */
+    private var fitScale = 1f
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         // Spacing is sized for the full alphabet, so a shorter list keeps the same rhythm and stays centred
         val available = h - topBottomPaddingPx - (allLetters.size - 1) * density
         itemHeight = (available / allLetters.size).coerceAtLeast(0f)
+        fitScale = if (itemHeight > 0f) (itemHeight * 0.9f / baseTextSize).coerceAtMost(1f) else 1f
         updateGestureExclusion(w, h)
     }
 
@@ -157,7 +162,7 @@ class AZSidebarView @JvmOverloads constructor(
 
             val isActive = letter == activeLetter
             letterPaint.typeface = if (isActive) boldTypeface else baseTypeface
-            letterPaint.textSize = baseTextSize * scale
+            letterPaint.textSize = baseTextSize * fitScale * scale
             letterPaint.color = when {
                 isActive && fingerLetter != null && p > 0f ->
                     ColorUtils.blendARGB(Color.WHITE, accent, p)
