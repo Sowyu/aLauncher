@@ -45,6 +45,43 @@
             android:saveEnabled="false"
             android:scrollbars="none" />
 
+        <!--
+            Clock header of the half-open drawer. It sits over the list's top padding; scrolling
+            the list up slides it away (full screen), scrolling back to the top brings it back.
+            Not clickable, so touches fall through to the list.
+        -->
+        <LinearLayout
+            android:id="@+id/clockHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:gravity="bottom"
+            android:orientation="vertical"
+            android:paddingHorizontal="28dp"
+            android:visibility="gone">
+
+            <TextClock
+                android:id="@+id/headerClock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:textSize="72sp" />
+
+            <TextClock
+                android:id="@+id/headerDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="18sp" />
+
+            <View
+                android:id="@+id/headerDivider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:background="@color/ui_text" />
+        </LinearLayout>
+
         <FrameLayout
             android:id="@+id/sidebar_container"
             android:layout_width="wrap_content"
