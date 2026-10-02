@@ -500,18 +500,18 @@ class HoloStickerView @JvmOverloads constructor(
                 // (purple -> red -> blue -> pink -> gold), drifting only a little.
                 float wash = dot(uv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9
                            + noise(uv * 1.6 + L * 0.15) * 0.25;
-                half3 col = mix(spectrum(wash + shardHue), half3(1.0), 0.25) * shardLum * facing;
+                half3 col = mix(spectrum(wash + shardHue), half3(1.0), 0.12) * shardLum * facing;
 
                 // Hairline striations, barely there
                 float stria = 0.96 + 0.04 * sin(local.y * 1.6);
                 col *= stria;
 
                 // Tilt reveals the foil; faint at rest
-                float reveal = 0.6 + 0.4 * smoothstep(0.05, 0.8, length(L));
-                float k = strength * reveal * (artW * 0.85 + ringW * 0.7);
+                float reveal = 0.8 + 0.2 * smoothstep(0.05, 0.8, length(L));
+                float k = clamp(strength * reveal * 1.35, 0.0, 1.0) * (artW + ringW * 0.8);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - col * k);
-                half3 outRgb = clamp(mix(scr, scr * col * 1.35, 0.25 * k), 0.0, 1.0);
+                half3 outRgb = clamp(mix(scr, scr * col * 1.5, 0.45 * k), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """

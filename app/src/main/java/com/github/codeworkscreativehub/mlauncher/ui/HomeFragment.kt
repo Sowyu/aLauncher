@@ -151,6 +151,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onResume() {
         super.onResume()
+        // Safety net: if nothing is animating and the drawer isn't meant to be open, home must be visible
+        if (drawerAnimator?.isRunning != true && !drawerTargetOpen && drawerProgress != 0f) applyDrawerProgress(0f)
         updateStickerActive()
     }
 
@@ -1501,10 +1503,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
         drawerBackCallback = callback
 
-        val reopen = savedInstanceState?.getBoolean(STATE_DRAWER_OPEN) == true
-        drawerTargetOpen = reopen
-        // Layout isn't done yet; apply once sizes are known
-        binding.homeRoot.post { if (_binding != null) applyDrawerProgress(if (reopen) 1f else 0f) }
+        // Always come back to home. Restoring an open drawer after a process restart left
+        // home hidden behind a drawer that was never told to show its content (blank screen).
+        drawerTargetOpen = false
+        binding.homeRoot.post { if (_binding != null) applyDrawerProgress(0f) }
     }
 
     private fun attachFreshDrawer() {
