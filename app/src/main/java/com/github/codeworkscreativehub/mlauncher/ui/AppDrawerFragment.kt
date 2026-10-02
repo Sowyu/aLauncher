@@ -73,6 +73,12 @@ import kotlinx.coroutines.withContext
 interface DrawerHost {
     fun closeDrawer(animate: Boolean = true)
     fun isDrawerFullyOpen(): Boolean
+
+    /** Animate the sheet to full screen (search needs the room). */
+    fun expandDrawer()
+
+    /** 0 = closed, [HomeFragment.SHEET_HALF] = half sheet, 1 = full screen. */
+    fun drawerProgressNow(): Float
     fun onDrawerDragStart()
     fun onDrawerDrag(dy: Float)
     fun onDrawerDragEnd(velocityY: Float)
@@ -137,6 +143,7 @@ class AppDrawerFragment : BaseFragment() {
 
         viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
 
+        binding.sheetHandle.isVisible = isEmbedded
         setupInsets()
         setupFrostedPill()
         setupSidebarSide()
@@ -157,7 +164,13 @@ class AppDrawerFragment : BaseFragment() {
 
         viewModel.appScrollMap.observe(viewLifecycleOwner) { appMap ->
             binding.azSidebar.onLetterSelected = { section ->
-                appMap[section]?.let { index -> jumpToSection(binding.appsRecyclerView, index + headerCount) }
+                if (section == "★") {
+                    // Top of the list: the pinned grid
+                    binding.appsRecyclerView.stopScroll()
+                    binding.appsRecyclerView.scrollToPosition(0)
+                } else {
+                    appMap[section]?.let { index -> jumpToSection(binding.appsRecyclerView, index + headerCount) }
+                }
             }
         }
 
@@ -326,6 +339,8 @@ class AppDrawerFragment : BaseFragment() {
                 }
 
                 val searching = !newText.isNullOrBlank()
+                // Results get the whole screen
+                if (searching) host?.let { if (it.drawerProgressNow() < 0.999f) it.expandDrawer() }
                 // Section letters only make sense for the full, alphabetical list
                 binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
                 showingPinned { pinnedAdapter.setHidden(searching) }
@@ -337,6 +352,17 @@ class AppDrawerFragment : BaseFragment() {
 
         refreshBackground()
     }
+
+    // ---------------------------------------------------------------- sheet
+
+    /** How far the sheet's top edge is below the top of the screen, in px (0 = full screen). */
+    private var sheetTop = 0f
+    private var drawerStatusTop = 0
+    private var lastInsets: WindowInsetsCompat? = null
+    private var reapplyTop: (() -> Unit)? = null
+    private var reapplyBottom: (() -> Unit)? = null
+    private val handleArea: Int get() = if (isEmbedded) (22 * resources.displayMetrics.density).toInt() else 0
+    private val handleGrab: Float get() = 28 * resources.displayMetrics.density
 
     // ---------------------------------------------------------------- layout
 
@@ -358,7 +384,11 @@ class AppDrawerFragment : BaseFragment() {
             val b = _binding ?: return
             b.drawerHeader.updatePadding(top = statusTop)
             val headerBottom = if (b.appDrawerTip.isVisible || b.pickerTitle.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
-            val top = maxOf(statusTop, headerBottom) + gap
+            drawerStatusTop = statusTop
+            // As a sheet: room for the grab handle, plus whatever part of the status bar the sheet
+            // has slid under (all of it at full screen, none at half)
+            val statusPart = if (isEmbedded) handleArea + (statusTop - sheetTop.toInt()).coerceIn(0, statusTop) else statusTop
+            val top = maxOf(statusPart, if (isEmbedded) 0 else headerBottom) + gap
             if (b.appsRecyclerView.paddingTop != top) b.appsRecyclerView.updatePadding(top = top)
             (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
                 if (it.topMargin != top) {
@@ -373,7 +403,11 @@ class AppDrawerFragment : BaseFragment() {
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
             val inset = maxOf(ime, nav)
-            val listBottom = if (b.searchContainer.isVisible) {
+            lastInsets = insets
+            // The sheet sits sheetTop lower than the screen: keep the list's end above the pill,
+            // which itself is held at the screen bottom by a counter-translation
+            val sheetShift = sheetTop.toInt()
+            val listBottom = sheetShift + if (b.searchContainer.isVisible) {
                 val params = b.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
                 if (params.bottomMargin != inset + pillMargin) {
                     params.bottomMargin = inset + pillMargin
@@ -393,6 +427,8 @@ class AppDrawerFragment : BaseFragment() {
         }
 
         binding.drawerHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyTop() }
+        reapplyTop = { applyTop() }
+        reapplyBottom = { lastInsets?.let { applyBottom(it) } }
 
         ViewCompat.setOnApplyWindowInsetsListener(panel) { _, insets ->
             statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()).top
@@ -463,17 +499,28 @@ class AppDrawerFragment : BaseFragment() {
      * drawer is an overlay. As a navigation destination it just goes back.
      */
     private fun setupDragToClose() {
+        // A tap on the home screen above the sheet puts the drawer away
+        binding.drawerRoot.onTap = { _, y -> if (y < sheetTop) host?.closeDrawer() }
         binding.drawerRoot.callback = object : VerticalDragLayout.Callback {
             override fun shouldStartDrag(downX: Float, downY: Float, dy: Float): Boolean {
-                if (dy <= 0) return false
-                if (binding.appsRecyclerView.canScrollVertically(-1)) return false
-                if (isInside(binding.sidebarContainer, downX, downY)) return false
                 val h = host
+                val atTop = !binding.appsRecyclerView.canScrollVertically(-1)
                 if (h == null) {
-                    findNavController().popBackStack()
+                    // App picker screen: pulling down at the top goes back
+                    if (dy > 0 && atTop && !isInside(binding.sidebarContainer, downX, downY)) {
+                        findNavController().popBackStack()
+                    }
                     return false
                 }
-                return h.isDrawerFullyOpen()
+                // Above the sheet, or on its handle strip: always moves the sheet
+                if (downY < sheetTop + handleGrab) return true
+                if (isInside(binding.sidebarContainer, downX, downY)) return false
+                return when {
+                    // Down at the list top: toward half, then closed
+                    dy > 0 -> atTop
+                    // Up at the list top while not full screen: expand the sheet before scrolling
+                    else -> atTop && h.drawerProgressNow() < 0.999f
+                }
             }
 
             override fun onDragStart() {
@@ -508,13 +555,26 @@ class AppDrawerFragment : BaseFragment() {
     /** Called by the host every frame: [progress] 0 = hidden, 1 = fully open. */
     fun applyReveal(progress: Float, travel: Int) {
         val b = _binding ?: return
-        b.mainLayout.translationY = (1f - progress) * travel
-        b.drawerBackdrop.alpha = progress
+        val top = (1f - progress) * travel
+        val oldTop = sheetTop
+        sheetTop = top
+        b.mainLayout.translationY = top
+        // The pill stays at the bottom of the screen whatever the sheet does
+        b.searchContainer.translationY = -top
+        // Blurred wallpaper stays aligned with the real one; only the sheet-shaped window moves.
+        // Corners round off as the sheet leaves the top of the screen.
+        val corner = 28f * resources.displayMetrics.density
+        val radius = corner * (top / (drawerStatusTop + corner)).coerceIn(0f, 1f)
+        b.drawerBackdrop.setSheet(top, radius)
+        b.drawerBackdrop.alpha = 1f
+        // Handle fades as the sheet tucks under the status bar
+        if (drawerStatusTop > 0) b.sheetHandle.alpha = (top / drawerStatusTop).coerceIn(0f, 1f)
         // The pill moved relative to the fixed backdrop it samples
         b.searchContainer.invalidate()
-        // The backdrop is static: cache it in a GPU layer while it fades so frames stay cheap
-        val layer = if (progress > 0f && progress < 1f) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
-        if (b.drawerBackdrop.layerType != layer) b.drawerBackdrop.setLayerType(layer, null)
+        if (oldTop.toInt() != top.toInt()) {
+            reapplyBottom?.invoke()
+            if (top < drawerStatusTop || oldTop < drawerStatusTop) reapplyTop?.invoke()
+        }
     }
 
     /** False when the list view is detached, or has data but laid out no rows. */
@@ -605,6 +665,7 @@ class AppDrawerFragment : BaseFragment() {
         val byKey = raw.filterNot { isHidden(it, hidden) }.associateBy { it.pinKey }
         val pinned = prefs.pinnedRow.mapNotNull { byKey[it] }
         showingPinned { pinnedAdapter.submit(pinned) }
+        if (::appsAdapter.isInitialized) updateAZSidebarForApps(appsAdapter.appsList)
     }
 
     /** mLauncher pinned by package name into a ★ section; those pins move to the row once. */
@@ -906,6 +967,8 @@ class AppDrawerFragment : BaseFragment() {
             }
         }
 
+        // ★ jumps to the pinned grid at the top whenever there are pins
+        if (::pinnedAdapter.isInitialized && pinnedAdapter.apps.isNotEmpty()) letters.add("★")
         binding.azSidebar.setAvailableLetters(letters)
     }
 

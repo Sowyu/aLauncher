@@ -33,6 +33,9 @@ class VerticalDragLayout @JvmOverloads constructor(
 
     var callback: Callback? = null
 
+    /** A tap that no child took (down and up without moving), in this view's coordinates. */
+    var onTap: ((x: Float, y: Float) -> Unit)? = null
+
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val maxFling = ViewConfiguration.get(context).scaledMaximumFlingVelocity.toFloat()
 
@@ -71,6 +74,8 @@ class VerticalDragLayout @JvmOverloads constructor(
                     val vt = tracker
                     vt?.computeCurrentVelocity(1000, maxFling)
                     cb.onDragEnd(vt?.yVelocity ?: 0f)
+                } else if (abs(ev.x - downX) < touchSlop && abs(ev.y - downY) < touchSlop) {
+                    onTap?.invoke(ev.x, ev.y)
                 }
                 clear()
             }

@@ -317,7 +317,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     private fun updateStickerActive() {
         val b = _binding ?: return
-        b.clockSticker.setActive(isResumed && drawerProgress == 0f)
+        b.clockSticker.setActive(isResumed && drawerProgress < 0.9f)
     }
 
     private fun updateUIFromPreferences() {
@@ -1507,6 +1507,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     private var drawerProgress = 0f
     private var drawerTargetOpen = false
+    private var drawerTargetProgress = 0f
     private var dragStartProgress = 0f
     private var drawerAnimator: ValueAnimator? = null
     private var drawerBackCallback: OnBackPressedCallback? = null
@@ -1545,9 +1546,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                 applyDrawerProgress(backStartProgress * (1f - 0.2f * backEvent.progress))
             }
 
-            override fun handleOnBackCancelled() = animateDrawerTo(open = true)
+            override fun handleOnBackCancelled() = animateDrawerTo(drawerTargetProgress.takeIf { it > 0f } ?: SHEET_HALF)
 
-            override fun handleOnBackPressed() = animateDrawerTo(open = false)
+            override fun handleOnBackPressed() = animateDrawerTo(0f)
         }
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
         drawerBackCallback = callback
@@ -1580,13 +1581,20 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val drawer = drawerFragment ?: return
         drawer.onDrawerOpening()
         if (query != null) drawer.setSearchQuery(query)
-        animateDrawerTo(open = true)
+        // A sheet over the home screen; typing (a hardware-key search) gets the full screen
+        animateDrawerTo(if (query != null) 1f else SHEET_HALF)
     }
+
+    override fun expandDrawer() {
+        if (drawerTargetOpen) animateDrawerTo(1f)
+    }
+
+    override fun drawerProgressNow(): Float = drawerProgress
 
     override fun closeDrawer(animate: Boolean) {
         if (drawerProgress == 0f && !drawerTargetOpen) return
         if (animate) {
-            animateDrawerTo(open = false)
+            animateDrawerTo(0f)
         } else {
             drawerAnimator?.cancel()
             drawerTargetOpen = false
@@ -1596,7 +1604,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         }
     }
 
-    override fun isDrawerFullyOpen(): Boolean = drawerTargetOpen && drawerProgress >= 1f
+    /** Settled open, as a half sheet or full screen. */
+    override fun isDrawerFullyOpen(): Boolean =
+        drawerTargetOpen && drawerAnimator?.isRunning != true && drawerProgress >= SHEET_HALF - 0.001f
 
     override fun onDrawerDragStart() {
         drawerAnimator?.cancel()
@@ -1613,8 +1623,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onDrawerDragEnd(velocityY: Float) {
         val fling = FLING_DP_PER_S * resources.displayMetrics.density
-        val opening = dragStartProgress < 0.5f
-        animateDrawerTo(shouldSettleOpen(velocityY, drawerProgress, fling, opening), velocityY)
+        animateDrawerTo(settleTarget(velocityY, drawerProgress, fling, dragStartProgress), velocityY)
     }
 
     private fun drawerTravel(): Float {
@@ -1628,30 +1637,32 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val visible = drawerProgress > 0f
         if (b.drawerContainer.isVisible != visible) {
             b.drawerContainer.visibility = if (visible) View.VISIBLE else View.INVISIBLE
-            // No foil animation behind the drawer
-            b.clockSticker.setActive(!visible && isResumed)
         }
+        // The sticker is still on show above a half sheet; stop its sensor once covered
+        b.clockSticker.setActive(isResumed && drawerProgress < 0.9f)
         drawerFragment?.applyReveal(drawerProgress, drawerTravel().toInt())
 
-        // Home fades out over the first part of the travel and shrinks slightly
-        b.mainLayout.alpha = (1f - drawerProgress * 1.5f).coerceIn(0f, 1f)
-        val scale = 1f - 0.05f * drawerProgress
-        b.mainLayout.scaleX = scale
-        b.mainLayout.scaleY = scale
-        val moving = drawerProgress > 0f && drawerProgress < 1f
+        // The half sheet leaves home visible and crisp above it. Home only fades while the sheet
+        // goes on to cover it (what's covered is covered; nothing extra)
+        b.mainLayout.alpha = (1f - (drawerProgress - SHEET_HALF) / (1f - SHEET_HALF)).coerceIn(0f, 1f)
+        b.mainLayout.scaleX = 1f
+        b.mainLayout.scaleY = 1f
+        val moving = drawerProgress > SHEET_HALF && drawerProgress < 1f
         val layer = if (moving) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE
         if (b.mainLayout.layerType != layer) b.mainLayout.setLayerType(layer, null)
 
         drawerBackCallback?.isEnabled = visible
     }
 
-    private fun animateDrawerTo(open: Boolean, velocityY: Float = 0f) {
+    /** Animate to a resting point: 0 (closed), [SHEET_HALF] or 1 (full screen). */
+    private fun animateDrawerTo(target: Float, velocityY: Float = 0f) {
         if (_binding == null) return
         drawerAnimator?.cancel()
+        val open = target > 0f
         drawerTargetOpen = open
+        drawerTargetProgress = target
         if (!open) drawerFragment?.onDrawerClosing()
 
-        val target = if (open) 1f else 0f
         val distance = abs(target - drawerProgress)
         if (distance < 0.001f) {
             applyDrawerProgress(target)
@@ -1693,16 +1704,32 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         private const val STATE_DRAWER_OPEN = "drawerOpen"
         private const val FLING_DP_PER_S = 1000f
 
+        /** Progress at which the sheet's top edge sits at 35% of the screen height. */
+        const val SHEET_HALF = 0.65f
+        private val STOPS = floatArrayOf(0f, SHEET_HALF, 1f)
+
         /**
-         * A fling (|v| above [flingPx], negative = up) decides by direction. Otherwise the drawer
-         * favours the direction of the gesture: pulling it up only needs 35% of the way, pushing
-         * it down needs to get below 65%.
+         * Where to settle after a drag. A fling goes to the next stop in its direction (a hard
+         * one from closed goes straight to full). Otherwise it follows the drag direction once
+         * 35% of the way into the next segment, else returns.
          */
-        internal fun shouldSettleOpen(velocityY: Float, progress: Float, flingPx: Float, opening: Boolean): Boolean = when {
-            velocityY < -flingPx -> true
-            velocityY > flingPx -> false
-            opening -> progress > 0.35f
-            else -> progress > 0.65f
+        internal fun settleTarget(velocityY: Float, progress: Float, flingPx: Float, startProgress: Float): Float {
+            val p = progress.coerceIn(0f, 1f)
+            if (velocityY < -flingPx) {
+                if (startProgress < 0.01f && velocityY < -3f * flingPx) return 1f
+                return STOPS.firstOrNull { it > p + 0.02f } ?: 1f
+            }
+            if (velocityY > flingPx) return STOPS.lastOrNull { it < p - 0.02f } ?: 0f
+            val hi = STOPS.firstOrNull { it >= p } ?: 1f
+            val lo = STOPS.lastOrNull { it <= p } ?: 0f
+            if (hi == lo) return p
+            val frac = (p - lo) / (hi - lo)
+            return when {
+                p > startProgress -> if (frac > 0.35f) hi else lo
+                p < startProgress -> if (frac < 0.65f) lo else hi
+                else -> if (frac >= 0.5f) hi else lo
+            }
         }
+
     }
 }
