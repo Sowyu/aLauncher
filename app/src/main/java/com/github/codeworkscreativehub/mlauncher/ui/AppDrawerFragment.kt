@@ -402,7 +402,9 @@ class AppDrawerFragment : BaseFragment() {
         // top of the list it stays at the top (8dp under the handle) while rows pass beneath it
         val listTop = rv.paddingTop + if (isEmbedded) (8 * resources.displayMetrics.density).toInt() - inset else 0
         val slotTop = pillSlot.attachedView()?.takeIf { it.parent === rv }?.top
-        val restY = if (slotTop != null) maxOf(listTop, slotTop + inset) else listTop
+        // Pinned labels leave extra air below the grid, so ride 8dp high in the slot: equal gaps above and below
+        val lift = (8 * resources.displayMetrics.density).toInt()
+        val restY = if (slotTop != null) maxOf(listTop, slotTop + inset - lift) else listTop
         val stuck = restY <= listTop
 
         val atBottom = -sheetTop
