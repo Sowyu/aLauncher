@@ -51,6 +51,14 @@ class FontRecyclerView @JvmOverloads constructor(
             invalidate()
         }
 
+    /** Nothing is drawn above this line (px from the top). -1 = no clip. For a sticky overlay. */
+    var clipTopAt: Int = -1
+        set(value) {
+            if (field == value) return
+            field = value
+            invalidate()
+        }
+
     private val fadePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
     }
@@ -77,6 +85,7 @@ class FontRecyclerView @JvmOverloads constructor(
         }
 
         val save = canvas.saveLayer(0f, 0f, w, height.toFloat(), null)
+        if (clipTopAt >= 0) canvas.clipRect(0f, clipTopAt.toFloat(), w, height.toFloat())
         super.draw(canvas)
         if (top > 0f) {
             fadePaint.shader = topShader

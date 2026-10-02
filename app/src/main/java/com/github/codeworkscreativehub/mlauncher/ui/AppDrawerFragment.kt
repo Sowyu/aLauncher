@@ -150,6 +150,12 @@ class AppDrawerFragment : BaseFragment() {
         binding.sheetHandle.isVisible = isEmbedded
         setupInsets()
         setupFrostedPill()
+        // Re-place the sticky pill against the list's latest row positions before every frame
+        binding.appsRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun onDraw(c: android.graphics.Canvas, parent: RecyclerView, state: RecyclerView.State) {
+                positionPill()
+            }
+        })
         setupSidebarSide()
         setupDragToClose()
 
@@ -243,7 +249,6 @@ class AppDrawerFragment : BaseFragment() {
 
         binding.appsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                positionPill()
                 val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
                 val itemCount = lm.itemCount
                 if (itemCount == 0) return
@@ -394,19 +399,27 @@ class AppDrawerFragment : BaseFragment() {
         if (rv.isComputingLayout) rv.post { pillSlot.setHeight(slot) } else pillSlot.setHeight(slot)
 
         // Sticky: it rides in its slot under the pinned grid, and once the slot scrolls past the
-        // top of the list it stays at the top (under the handle) while rows pass beneath it
-        val listTop = rv.paddingTop
+        // top of the list it stays at the top (8dp under the handle) while rows pass beneath it
+        val listTop = rv.paddingTop + if (isEmbedded) (8 * resources.displayMetrics.density).toInt() - inset else 0
         val slotTop = pillSlot.attachedView()?.takeIf { it.parent === rv }?.top
         val restY = if (slotTop != null) maxOf(listTop, slotTop + inset) else listTop
-        val stuck = slotTop == null || slotTop + inset <= listTop
+        val stuck = restY <= listTop
 
         val atBottom = -sheetTop
         val natural = (b.mainLayout.height - pill.height -
             ((pill.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin)).toFloat()
         val underPins = restY - natural
         pill.translationY = atBottom + (underPins - atBottom) * up + pillRise
-        // Rows fade out where they slide under the stuck pill
-        rv.fadeTopAt = if (up > 0.5f && stuck) restY + pill.height + inset else -1
+        // While stuck, the list's content area starts below the pill: nothing is drawn above its
+        // bottom edge, and rows fade in over the stretch just under it
+        if (up > 0.5f && stuck) {
+            val pillBottom = restY + pill.height
+            rv.clipTopAt = pillBottom
+            rv.fadeTopAt = pillBottom + rv.edgeFadeLength
+        } else {
+            rv.clipTopAt = -1
+            rv.fadeTopAt = -1
+        }
     }
 
     /**
