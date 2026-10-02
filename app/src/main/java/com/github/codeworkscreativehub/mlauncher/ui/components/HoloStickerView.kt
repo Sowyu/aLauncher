@@ -358,7 +358,7 @@ class HoloStickerView @JvmOverloads constructor(
         val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
         val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
         val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
-        val strength = ((0.42f + 0.33f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
+        val strength = ((0.62f + 0.38f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && foilShader != null) {
             drawFoilShader(canvas, bmp, art, ring, left, top, size, tx, ty, strength)
         } else {
@@ -503,26 +503,31 @@ class HoloStickerView @JvmOverloads constructor(
                 float match = clamp(1.0 - length(L - facet) * 1.4, 0.0, 1.0);
                 float flake = step(0.7, r) * smoothstep(0.32, 0.0, length(f)) * match * match;
 
-                // Herringbone emboss pressed into the card (like full-art V cards). A smooth
-                // sinusoidal height field in pixels, so it stays crisp without dithering.
-                // It's lit like a surface: visible at rest, catches light as the angle changes.
-                float period = max(size / 36.0, 5.0);
-                float zig = abs(fract(local.x / (period * 2.0)) - 0.5) * 2.0 * period;
-                float v = (local.y + zig) / period * 6.2831853;
-                float slopeSign = (fract(local.x / (period * 2.0)) < 0.5) ? 1.0 : -1.0;
-                float2 n2 = float2(slopeSign, -1.0) * cos(v);
-                float lit = dot(n2, L * 1.2 + float2(0.55, -0.7));
-                float emboss = clamp(0.5 + 0.5 * lit, 0.0, 1.0);
+                // Light streaks: on V cards the reflection off the ridged foil shows as long
+                // diagonal bright bands with a rainbow across each, sweeping as the card tilts.
+                float2 sd = normalize(float2(1.0, -1.15));          // across the streaks
+                float across = dot(uv, sd) * 4.6 - dot(L, sd) * 2.4 - (L.x + L.y) * 0.35;
+                float bandId = floor(across);
+                float bf = fract(across);
+                float w = 0.16 + 0.22 * hash(float2(bandId, 1.7));   // each streak its own width
+                float centre = 0.5 + (hash(float2(bandId, 4.2)) - 0.5) * 0.3;
+                float streak = smoothstep(w, 0.0, abs(bf - centre));
+                streak *= 0.55 + 0.45 * hash(float2(bandId, 9.1));    // and its own brightness
+                // Rainbow across each streak's width, plus the diffraction colour
+                half3 streakCol = mix(spectrum((bf - centre) / max(w, 0.05) * 0.5 + phase * 0.3), half3(1.0), 0.25);
 
-                half3 foil = rb * relief * bright * (0.78 + 0.44 * emboss);
-                float k = strength * bright * (artW * 0.85 + ringW * 0.7);
-                // Screen blend keeps Ditto's pink, then a touch of colour mix for richness
+                // Ridges only show where light hits them: fine glints inside the streaks
+                float period = max(size / 30.0, 6.0);
+                float zig = abs(fract(local.x / (period * 2.0)) - 0.5) * 2.0 * period;
+                float ridge = 0.5 + 0.5 * cos((local.y + zig) / period * 6.2831853);
+                float glint = streak * (0.7 + 0.6 * ridge);
+
+                half3 foil = rb * relief * bright * 0.6 + streakCol * glint * 1.15;
+                float k = strength * (0.35 * bright + 0.95 * streak) * (artW * 0.95 + ringW * 0.8);
                 half3 rgb = base.rgb / max(base.a, 0.001);
-                // The emboss shades the printed art itself, a little, like a pressed surface
-                rgb = rgb * (1.0 + (emboss - 0.5) * 0.26 * (artW + ringW * 0.6));
-                half3 scr = 1.0 - (1.0 - rgb) * (1.0 - foil * k);
-                half3 tint = mix(scr, scr * foil * 1.6, 0.18 * k);
-                half3 outRgb = clamp(tint + half3(flake * 0.9 * strength * artW), 0.0, 1.0);
+                half3 scr = 1.0 - (1.0 - rgb) * (1.0 - clamp(foil * k, 0.0, 1.0));
+                half3 tint = mix(scr, scr * clamp(foil, 0.0, 1.0) * 1.5, 0.2 * k);
+                half3 outRgb = clamp(tint + half3(flake * 1.0 * strength * artW), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
