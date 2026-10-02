@@ -3,6 +3,7 @@ package com.github.codeworkscreativehub.mlauncher.ui.iconpack
 import android.os.Bundle
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.github.codeworkscreativehub.common.getLocalizedString
 import com.github.codeworkscreativehub.mlauncher.MainViewModel
@@ -27,28 +28,32 @@ class ApplyIconPackActivity : androidx.appcompat.app.AppCompatActivity() {
         val packageName = intent.getStringExtra("packageName").toString()
         val packageClass = intent.getStringExtra("packageClass").toString()
         if (packageClass.isNotEmpty()) {
-            // Create a vertical LinearLayout programmatically
-            val layout = LinearLayout(this).apply {
+            // Views use the dialog's themed context so the checkboxes get the mauve tint
+            val builder = MaterialAlertDialogBuilder(this)
+            val ctx = builder.context
+            val dp = resources.displayMetrics.density
+            val layout = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(50, 40, 50, 10)
+                setPadding((16 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0)
             }
 
-            // Create the CheckBoxes
-            val checkBoxHome = CheckBox(this).apply {
-                text = getLocalizedString(R.string.apply_to_home) // e.g., "Apply to Home"
+            fun option(label: Int) = CheckBox(ctx).apply {
+                text = getLocalizedString(label)
                 isChecked = true // default value
+                minHeight = (56 * dp).toInt()
+                textSize = 17f
+                setTextColor(ContextCompat.getColor(ctx, R.color.ui_text))
+                setPaddingRelative((12 * dp).toInt(), 0, 0, 0)
             }
 
-            val checkBoxAppList = CheckBox(this).apply {
-                text = getLocalizedString(R.string.apply_to_app_list) // e.g., "Apply to App List"
-                isChecked = true // default value
-            }
+            val checkBoxHome = option(R.string.apply_to_home)
+            val checkBoxAppList = option(R.string.apply_to_app_list)
 
             // Add the CheckBoxes to the layout
             layout.addView(checkBoxHome)
             layout.addView(checkBoxAppList)
 
-            MaterialAlertDialogBuilder(this)
+            builder
                 .setTitle(getLocalizedString(R.string.apply_icon_pack))
                 .setMessage(getLocalizedString(R.string.apply_icon_pack_are_you_sure, packageName))
                 .setView(layout)
