@@ -1,43 +1,63 @@
-<!-- page_one.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Welcome page: settings-style large title at the top, actions in thumb reach at the bottom -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:gravity="center"
-    android:orientation="vertical">
+    android:background="@color/ui_background"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp">
 
     <ImageView
         android:id="@+id/logo"
-        android:layout_width="104dp"
-        android:layout_height="104dp"
-        android:layout_marginBottom="24dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginTop="72dp"
         android:contentDescription="@string/app_name"
         android:src="@drawable/app_launcher" />
 
     <TextView
         android:id="@+id/title"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:accessibilityHeading="true"
+        android:fontFamily="@font/google_sans_flex_medium"
+        android:lineSpacingExtra="4sp"
         android:text="@string/welcome_to_launcher"
-        android:textSize="20sp" />
+        android:textColor="@color/ui_text"
+        android:textSize="34sp" />
 
     <TextView
         android:id="@+id/description"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/google_sans_flex"
+        android:lineSpacingExtra="4sp"
         android:text="@string/continue_by_you_agree"
+        android:textColor="@color/ui_text_secondary"
+        android:textColorLink="@color/ui_accent"
         android:textSize="16sp" />
 
-    <Button
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/permissionButton"
-        android:layout_width="wrap_content"
+        style="@style/Widget.ALauncher.Button.Tonal"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
         android:text="@string/advanced_settings_set_as_default_launcher" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/nextButton"
-        android:layout_width="wrap_content"
+        style="@style/Widget.ALauncher.Button"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="@string/next" />
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="24dp"
+        android:text="@string/start" />
 </LinearLayout>
