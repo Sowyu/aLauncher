@@ -153,6 +153,7 @@ class AppDrawerFragment : BaseFragment() {
         }
 
         if (flag == AppDrawerFlag.SetHomeApp) setupClearHomeButton(n)
+        setupPickerTitle()
 
         viewModel.appScrollMap.observe(viewLifecycleOwner) { appMap ->
             binding.azSidebar.onLetterSelected = { section ->
@@ -349,7 +350,7 @@ class AppDrawerFragment : BaseFragment() {
         fun applyTop() {
             val b = _binding ?: return
             b.drawerHeader.updatePadding(top = statusTop)
-            val headerBottom = if (b.appDrawerTip.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
+            val headerBottom = if (b.appDrawerTip.isVisible || b.pickerTitle.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
             val top = maxOf(statusTop, headerBottom) + gap
             if (b.appsRecyclerView.paddingTop != top) b.appsRecyclerView.updatePadding(top = top)
             (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
@@ -925,13 +926,27 @@ class AppDrawerFragment : BaseFragment() {
         binding.clearHomeButton.apply {
             isVisible = hasCurrentApp
             if (hasCurrentApp) {
-                text = getLocalizedString(R.string.clear_home_app)
-                setTextColor(prefs.appColor)
-                textSize = prefs.appSize.toFloat()
+                text = getLocalizedString(R.string.picker_clear_slot)
                 setOnClickListener {
                     prefs.setHomeAppModel(position, createClearApp())
                     dismiss(toHome = false)
                 }
+            }
+        }
+    }
+
+    /** Picker modes get a large title, like a settings screen; the normal drawer has none. */
+    private fun setupPickerTitle() {
+        val title = when (flag) {
+            AppDrawerFlag.LaunchApp, AppDrawerFlag.None -> null
+            AppDrawerFlag.HiddenApps -> getLocalizedString(R.string.st_hidden_apps)
+            else -> getLocalizedString(R.string.picker_title)
+        }
+        binding.pickerTitle.apply {
+            isVisible = title != null
+            text = title
+            if (com.github.codeworkscreativehub.mlauncher.helper.FontManager.isBundled(context)) {
+                androidx.core.content.res.ResourcesCompat.getFont(context, R.font.google_sans_flex_medium)?.let { typeface = it }
             }
         }
     }
