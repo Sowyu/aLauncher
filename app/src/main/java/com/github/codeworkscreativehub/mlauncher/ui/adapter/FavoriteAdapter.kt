@@ -1,13 +1,10 @@
 package com.github.codeworkscreativehub.mlauncher.ui.adapter
 
 import android.annotation.SuppressLint
-import android.graphics.drawable.Drawable
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.github.codeworkscreativehub.mlauncher.R
@@ -28,7 +25,7 @@ class FavoriteAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.home_app_button, parent, false)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_favorite_app, parent, false)
         return AppViewHolder(view)
     }
 
@@ -36,20 +33,10 @@ class FavoriteAdapter(
     override fun onBindViewHolder(holder: AppViewHolder, position: Int) {
         val appItem = apps[position]
 
-        // Set the label text from the app item
-        holder.appTextView.text = appItem.activityLabel
-
-        // Set the text size and color dynamically using prefs
-        holder.appTextView.setTextColor(prefs.appColor)  // Get color from prefs
-        holder.appTextView.textSize = prefs.appSize.toFloat()  // Get text size from prefs
-
-        // Set the gravity to align text to the left and ensure it's centered vertically
-        holder.appTextView.gravity = Gravity.START or Gravity.CENTER_VERTICAL
-
-        // Set drawable to the right side of the text
-        val prefixDrawable: Drawable? =
-            ContextCompat.getDrawable(holder.itemView.context, R.drawable.ic_order_apps)
-        holder.appTextView.setCompoundDrawablesWithIntrinsicBounds(null, null, prefixDrawable, null)
+        // An empty slot shows the "Choose an app" hint; look comes from item_favorite_app.xml
+        holder.appTextView.text = if (appItem.activityPackage.isEmpty()) "" else {
+            prefs.getAppAlias(appItem.activityPackage).takeIf { it.isNotBlank() } ?: appItem.activityLabel
+        }
 
         // Click -> delegate to callback if provided
         holder.itemView.setOnClickListener {

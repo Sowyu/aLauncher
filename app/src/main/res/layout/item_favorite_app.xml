@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One home slot on the Favorite apps screen: rounded card, drag handle at the end -->
+<com.github.creativecodecat.components.views.FontAppCompatTextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/homeAppLabel"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="4dp"
+    android:background="@drawable/bg_ui_row"
+    android:drawablePadding="16dp"
+    android:ellipsize="end"
+    android:gravity="start|center_vertical"
+    android:hint="@string/picker_title"
+    android:maxLines="1"
+    android:minHeight="64dp"
+    android:paddingStart="24dp"
+    android:paddingEnd="20dp"
+    android:textColor="@color/ui_text"
+    android:textColorHint="@color/ui_text_secondary"
+    android:textSize="17sp"
+    app:drawableEndCompat="@drawable/ic_order_apps"
+    app:drawableTint="@color/ui_text_secondary" />
