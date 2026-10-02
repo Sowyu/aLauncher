@@ -9,7 +9,6 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.UserHandle
 import android.text.Editable
-import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -23,12 +22,14 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.biometric.BiometricPrompt
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.RecyclerView
 import com.github.codeworkscreativehub.common.AppLogger
 import com.github.codeworkscreativehub.common.getLocalizedString
+import com.github.codeworkscreativehub.common.hideKeyboard
 import com.github.codeworkscreativehub.common.isSystemApp
 import com.github.codeworkscreativehub.common.showKeyboard
 import com.github.codeworkscreativehub.fuzzywuzzy.AppSearch
@@ -138,16 +139,15 @@ class AppDrawerAdapter(
                 }
             }
 
-            notifyItemChanged(holder.bindingAdapterPosition)
-            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.bindingAdapterPosition}")
+            closeInlineEditor(holder)
         }
 
         holder.appSaveCancel.setOnClickListener {
             AppLogger.d("AppListDebug", "✏️ Cancel rename for ${appModel.activityPackage}")
-
-            notifyItemChanged(holder.bindingAdapterPosition)
-            AppLogger.d("AppListDebug", "🔁 notifyItemChanged at ${holder.bindingAdapterPosition}")
+            closeInlineEditor(holder)
         }
+
+        holder.appTagCancel.setOnClickListener { closeInlineEditor(holder) }
 
         holder.appSaveTag.setOnClickListener {
             val name = holder.appTagEdit.text.toString().trim()
@@ -272,14 +272,22 @@ class AppDrawerAdapter(
         holder.clearIcon()
     }
 
+    /** Cancel: hide the keyboard and rebind the row, which closes the field. */
+    private fun closeInlineEditor(holder: ViewHolder) {
+        holder.itemView.hideKeyboard()
+        if (editingPosition == holder.bindingAdapterPosition) editingPosition = RecyclerView.NO_POSITION
+        notifyItemChanged(holder.bindingAdapterPosition)
+    }
+
     inner class ViewHolder(
         itemView: AdapterAppDrawerBinding
     ) : RecyclerView.ViewHolder(itemView.root) {
         val appRenameEdit: EditText = itemView.appRenameEdit
-        val appSaveRename: ImageView = itemView.appSaveRename
+        val appSaveRename: TextView = itemView.appSaveRename
         val appSaveCancel: ImageView = itemView.appSaveCancel
         val appTagEdit: EditText = itemView.appTagEdit
         val appSaveTag: TextView = itemView.appSaveTag
+        val appTagCancel: ImageView = itemView.appTagCancel
 
         private val appRenameLayout: LinearLayout = itemView.appRenameLayout
         private val appTagLayout: LinearLayout = itemView.appTagLayout
@@ -298,6 +306,7 @@ class AppDrawerAdapter(
 
             appRenameLayout.isVisible = false
             appTagLayout.isVisible = false
+            appTitleFrame.isInvisible = false
 
             val packageName = appListItem.activityPackage
 
@@ -310,14 +319,6 @@ class AppDrawerAdapter(
 
             appTagEdit.apply {
                 text = Editable.Factory.getInstance().newEditable(appListItem.customTag)
-                addTextChangedListener(object : TextWatcher {
-                    override fun afterTextChanged(s: Editable) {}
-                    override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
-                    override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
-                        appSaveTag.text = if (text.toString() == appListItem.customTag) getLocalizedString(R.string.cancel)
-                        else getLocalizedString(R.string.tag)
-                    }
-                })
             }
 
             // ----------------------------
@@ -369,21 +370,28 @@ class AppDrawerAdapter(
             }
         }
 
-        fun openInlineEditor(layout: View, edit: EditText) {
+        /** Swaps the row for the field; the keyboard's Done key presses the Done pill. */
+        fun openInlineEditor(layout: View, edit: EditText, done: View) {
             layout.isVisible = true
+            // The field replaces the label; the label must not show through around it
+            appTitleFrame.isInvisible = true
             editingPosition = bindingAdapterPosition
-            edit.imeOptions = EditorInfo.IME_ACTION_DONE
+            edit.imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+            edit.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) done.performClick() else false
+            }
+            edit.setSelection(edit.text.length)
             edit.showKeyboard()
         }
 
         fun openRename(app: AppListItem) {
             appRenameEdit.hint = app.activityLabel
-            openInlineEditor(appRenameLayout, appRenameEdit)
+            openInlineEditor(appRenameLayout, appRenameEdit, appSaveRename)
         }
 
         fun openTag(app: AppListItem) {
-            appTagEdit.hint = app.activityLabel
-            openInlineEditor(appTagLayout, appTagEdit)
+            appTagEdit.hint = getLocalizedString(R.string.tag)
+            openInlineEditor(appTagLayout, appTagEdit, appSaveTag)
         }
 
         // Helper to set icon on appTitle with correct size and alignment
