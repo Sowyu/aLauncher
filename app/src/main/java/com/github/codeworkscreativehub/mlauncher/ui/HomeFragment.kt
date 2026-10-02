@@ -182,8 +182,52 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         // Update dynamic UI elements
         updateTimeAndInfo()
         binding.clock.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> positionSticker() }
+        binding.timeDateLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> keepListBelowClock() }
         updateClockSticker()
         refreshIconsIfStale()
+    }
+
+    /**
+     * The app list is centred on the whole screen and knows nothing about the clock, so a big
+     * clock plus many apps made them overlap. Push the list's top padding below the date.
+     */
+    private fun keepListBelowClock() {
+        val b = _binding ?: return
+        val minTop = (100 * resources.displayMetrics.density).toInt()
+        val gap = (28 * resources.displayMetrics.density).toInt()
+        val dateBottom = if (b.timeDateLayout.isVisible) {
+            val loc = IntArray(2); b.timeDateLayout.getLocationInWindow(loc)
+            val listLoc = IntArray(2); b.homeAppsLayout.getLocationInWindow(listLoc)
+            loc[1] + b.timeDateLayout.height - listLoc[1]
+        } else 0
+        val top = maxOf(minTop, dateBottom + gap)
+        val list = b.homeAppsLayout
+        if (list.paddingTop != top) list.setPadding(list.paddingLeft, top, list.paddingRight, list.paddingBottom)
+        // If the rows don't fit under the clock, tighten their vertical padding (never clip apps)
+        list.post { fitRows() }
+    }
+
+    private fun fitRows() {
+        val list = _binding?.homeAppsLayout ?: return
+        val rows = list.children.filter { it.isVisible }.toList()
+        if (rows.isEmpty() || list.height == 0) return
+        val available = list.height - list.paddingTop - list.paddingBottom
+        // Natural padding is remembered in the tag the first time we see a row
+        var natural = 0
+        var textOnly = 0
+        for (r in rows) {
+            val pad = (r.getTag(R.id.home_row_pad) as? Int) ?: r.paddingTop.also { r.setTag(R.id.home_row_pad, it) }
+            natural += r.height - r.paddingTop - r.paddingBottom + 2 * pad
+            textOnly += r.height - r.paddingTop - r.paddingBottom
+        }
+        val minPad = (2 * resources.displayMetrics.density).toInt()
+        val scale = if (natural <= available) 1f
+            else ((available - textOnly).toFloat() / (natural - textOnly)).coerceIn(0f, 1f)
+        for (r in rows) {
+            val pad = r.getTag(R.id.home_row_pad) as Int
+            val p = maxOf(minPad, (pad * scale).toInt())
+            if (r.paddingTop != p || r.paddingBottom != p) r.setPadding(r.paddingLeft, p, r.paddingRight, p)
+        }
     }
 
     private var iconGeneration = IconPackHelper.generation
