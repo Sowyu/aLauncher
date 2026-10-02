@@ -459,6 +459,18 @@ class HoloStickerView @JvmOverloads constructor(
                 return mix(mix(hash(i), hash(i + float2(1, 0)), f.x),
                            mix(hash(i + float2(0, 1)), hash(i + float2(1, 1)), f.x), f.y);
             }
+            // Purple and blue only: periwinkle -> blue -> violet -> lavender, looping
+            half3 coolSpectrum(float h) {
+                h = fract(h) * 4.0;
+                half3 c0 = half3(0.45, 0.55, 1.0);   // periwinkle
+                half3 c1 = half3(0.30, 0.42, 1.0);   // blue
+                half3 c2 = half3(0.62, 0.38, 1.0);   // violet
+                half3 c3 = half3(0.80, 0.62, 1.0);   // lavender
+                if (h < 1.0) return mix(c0, c1, h);
+                if (h < 2.0) return mix(c1, c2, h - 1.0);
+                if (h < 3.0) return mix(c2, c3, h - 2.0);
+                return mix(c3, c0, h - 3.0);
+            }
             half3 spectrum(float h) {
                 h = fract(h);
                 return half3(clamp(abs(h * 6.0 - 3.0) - 1.0, 0.0, 1.0),
@@ -494,24 +506,25 @@ class HoloStickerView @JvmOverloads constructor(
                 float shardLum = 0.72 + 0.45 * hash(bestCell + 9.1);
                 // Each shard is a tiny mirror at its own angle: it brightens when the tilt suits it
                 float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
-                float facing = 0.75 + 0.25 * clamp(dot(normalize(L + 1e-4), facet), -1.0, 1.0) * clamp(length(L), 0.0, 1.0);
+                float align = clamp(1.0 - length(L - facet * 0.8) * 1.3, 0.0, 1.0);
+                float facing = 0.7 + 0.9 * align * align;
 
                 // Broad colour wash across the whole sticker; tilt changes its colour
                 // (purple -> red -> blue -> pink -> gold), drifting only a little.
                 float wash = dot(uv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9
                            + noise(uv * 1.6 + L * 0.15) * 0.25;
-                half3 col = mix(spectrum(wash + shardHue), half3(1.0), 0.12) * shardLum * facing;
+                half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.15) * shardLum * facing;
 
                 // Hairline striations, barely there
                 float stria = 0.96 + 0.04 * sin(local.y * 1.6);
                 col *= stria;
 
                 // Tilt reveals the foil; faint at rest
-                float reveal = 0.8 + 0.2 * smoothstep(0.05, 0.8, length(L));
-                float k = clamp(strength * reveal * 1.35, 0.0, 1.0) * (artW + ringW * 0.8);
+                float reveal = 0.2 + 0.55 * smoothstep(0.05, 0.8, length(L));
+                float k = clamp(strength * reveal, 0.0, 1.0) * (artW * 0.8 + ringW * 0.7);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - col * k);
-                half3 outRgb = clamp(mix(scr, scr * col * 1.5, 0.45 * k), 0.0, 1.0);
+                half3 outRgb = clamp(mix(scr, scr * col * 1.3, 0.25 * k), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
