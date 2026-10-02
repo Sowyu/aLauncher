@@ -174,8 +174,8 @@ class HoloStickerView @JvmOverloads constructor(
         }
         val tx = (roll - baseX).coerceIn(-TILT_RANGE, TILT_RANGE)
         val ty = (pitch - baseY).coerceIn(-TILT_RANGE, TILT_RANGE)
-        tiltX += (tx - tiltX) * 0.35f
-        tiltY += (ty - tiltY) * 0.35f
+        tiltX += (tx - tiltX) * 0.12f
+        tiltY += (ty - tiltY) * 0.12f
         if (abs(tiltX - lastDrawX) > 0.03f || abs(tiltY - lastDrawY) > 0.03f) {
             lastDrawX = tiltX
             lastDrawY = tiltY
@@ -193,7 +193,7 @@ class HoloStickerView @JvmOverloads constructor(
         val d = dt(event)
         val (wx, wy, wz) = Triple(event.values[0], event.values[1], event.values[2])
         // Twisting around the screen axis spins the rainbow; it drifts back so it never gets stuck
-        spin = (spin + wz * d * 1.5f) * 0.985f
+        spin = (spin + wz * d * 0.3f) * 0.97f
         val rate = sqrt(wx * wx + wy * wy + wz * wz)
         energy = maxOf(energy * 0.94f, (rate / 3f).coerceAtMost(1f))
         stepPush(d)
@@ -203,8 +203,8 @@ class HoloStickerView @JvmOverloads constructor(
     private fun onMove(event: SensorEvent) {
         val d = dt(event)
         // Moving the phone shoves the light point the other way (inertia), then a spring brings it back
-        pushVX -= event.values[0] * d * 0.9f
-        pushVY += event.values[1] * d * 0.9f
+        pushVX -= event.values[0] * d * 0.25f
+        pushVY += event.values[1] * d * 0.25f
         val a = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
         energy = maxOf(energy, (a / 6f).coerceAtMost(1f))
         stepPush(d)
@@ -436,7 +436,7 @@ class HoloStickerView @JvmOverloads constructor(
     }
 
     private companion object {
-        const val TILT_RANGE = 8f
+        const val TILT_RANGE = 16f
 
         // Foil model: a diffraction foil whose grating direction is fixed per point (gently
         // warped across the card). The diffracted colour at a point depends on the angle
@@ -481,7 +481,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // colour = fixed structure + view angle. The structure never moves.
                 float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
                 float2 g = float2(cos(ang), sin(ang));
-                float phase = dot(uv, g) * 1.6 + dot(L, g) * 2.6 + noise(uv * 5.0) * 0.15;
+                float phase = dot(uv, g) * 1.6 + dot(L, g) * 0.35 + noise(uv * 5.0) * 0.15;
                 half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
 
                 // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
@@ -489,7 +489,7 @@ class HoloStickerView @JvmOverloads constructor(
                 float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
 
                 // Moving reflection of the light; foil is brightest where it catches
-                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 1.1;
+                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.25;
                 float2 dh = uv - hc;
                 float sheen = exp(-dot(dh, dh) * 2.4);
                 float bright = 0.45 + 0.55 * sheen;
@@ -506,7 +506,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // Light streaks: on V cards the reflection off the ridged foil shows as long
                 // diagonal bright bands with a rainbow across each, sweeping as the card tilts.
                 float2 sd = normalize(float2(1.0, -1.15));          // across the streaks
-                float across = dot(uv, sd) * 2.6 - dot(L, sd) * 2.4 - (L.x + L.y) * 0.35;
+                float across = dot(uv, sd) * 2.6;
                 float bandId = floor(across);
                 float bf = fract(across);
                 float w = 0.26 + 0.2 * hash(float2(bandId, 1.7));   // each streak its own width
@@ -522,12 +522,14 @@ class HoloStickerView @JvmOverloads constructor(
                 float ridge = 0.5 + 0.5 * cos((local.y + zig) / period * 6.2831853);
                 float glint = streak * (0.7 + 0.6 * ridge);
 
+                // Tilt reveals and hides the same foil: faint at rest, full when tilted
+                float reveal = 0.18 + 0.82 * smoothstep(0.08, 0.85, length(L));
                 half3 foil = rb * relief * bright + streakCol * glint * 1.03;
-                float k = strength * (0.85 * bright + 0.85 * streak) * (artW * 0.9 + ringW * 0.75);
+                float k = strength * reveal * (0.85 * bright + 0.85 * streak) * (artW * 0.9 + ringW * 0.75);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - clamp(foil * k, 0.0, 1.0));
                 half3 tint = mix(scr, scr * clamp(foil, 0.0, 1.0) * 1.5, 0.2 * k);
-                half3 outRgb = clamp(tint + half3(flake * 1.0 * strength * artW), 0.0, 1.0);
+                half3 outRgb = clamp(tint + half3(flake * 1.0 * strength * reveal * artW), 0.0, 1.0);
                 return half4(outRgb * base.a, base.a);
             }
         """
