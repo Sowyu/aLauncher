@@ -381,7 +381,7 @@ class Prefs(val context: Context) {
 
     /** Size of the image next to the clock, in dp. */
     var clockStickerSize: Int
-        get() = getSetting(CLOCK_STICKER_SIZE, 96).coerceIn(32, 240)
+        get() = getSetting(CLOCK_STICKER_SIZE, 136).coerceIn(32, 240)
         set(value) = prefsNormal.edit { putInt(CLOCK_STICKER_SIZE, value.coerceIn(32, 240)) }
 
     /** Holographic foil on the clock sticker that follows the phone's tilt. */

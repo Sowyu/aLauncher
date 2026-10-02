@@ -313,8 +313,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val digitsHeight = digits.height().toFloat()
 
         val size = sticker.layoutParams.width.toFloat()
-        val cx = clockLeft + clock.width * 0.90f
-        val cy = digitsTop + digitsHeight * 0.60f
+        // Anchor the sticker's bottom-right to the clock's bottom-right corner, so a bigger
+        // sticker grows up and left from the corner instead of drifting off it
+        val cx = clockLeft + clock.width - size * 0.32f
+        val cy = digitsTop + digitsHeight - size * 0.18f
         val margin = 8 * resources.displayMetrics.density
         val maxX = b.mainLayout.width - size - margin
         sticker.translationX = (cx - size / 2f).coerceIn(margin, maxOf(margin, maxX))
