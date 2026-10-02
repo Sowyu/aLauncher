@@ -43,14 +43,6 @@ class FontRecyclerView @JvmOverloads constructor(
             invalidate()
         }
 
-    /** Where the top fade sits (px from the top). -1 = at paddingTop. Lets a collapsing header move it. */
-    var fadeTopAt: Int = -1
-        set(value) {
-            if (field == value) return
-            field = value
-            invalidate()
-        }
-
     private val fadePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
     }
@@ -65,10 +57,9 @@ class FontRecyclerView @JvmOverloads constructor(
             return
         }
         val w = width.toFloat()
-        val topPx = if (fadeTopAt >= 0) fadeTopAt else paddingTop
-        val top = topPx.toFloat()
+        val top = paddingTop.toFloat()
         val bottom = (height - paddingBottom).toFloat()
-        val key = (topPx.toLong() shl 40) or (paddingBottom.toLong() shl 20) or fade.toLong()
+        val key = (paddingTop.toLong() shl 40) or (paddingBottom.toLong() shl 20) or fade.toLong()
         if (key != shaderKey) {
             shaderKey = key
             // Erase nothing at the content edge, everything one fade length past it

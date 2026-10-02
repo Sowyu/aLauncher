@@ -54,7 +54,6 @@ import com.github.codeworkscreativehub.mlauncher.data.Prefs
 import com.github.codeworkscreativehub.mlauncher.databinding.FragmentAppDrawerBinding
 import com.github.codeworkscreativehub.mlauncher.helper.ChineseSortHelper
 import com.github.codeworkscreativehub.mlauncher.helper.DrawerBackground
-import com.github.codeworkscreativehub.mlauncher.helper.FontManager
 import com.github.codeworkscreativehub.mlauncher.helper.emptyString
 import com.github.codeworkscreativehub.mlauncher.helper.openAppInfo
 import com.github.codeworkscreativehub.mlauncher.ui.adapter.AppDrawerAdapter
@@ -138,7 +137,6 @@ class AppDrawerFragment : BaseFragment() {
 
         viewModel = ViewModelProvider(requireActivity())[MainViewModel::class.java]
 
-        setupClockHeader()
         setupInsets()
         setupFrostedPill()
         setupSidebarSide()
@@ -228,7 +226,6 @@ class AppDrawerFragment : BaseFragment() {
 
         binding.appsRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                updateClockHeader()
                 val lm = recyclerView.layoutManager as? LinearLayoutManager ?: return
                 val itemCount = lm.itemCount
                 if (itemCount == 0) return
@@ -269,7 +266,6 @@ class AppDrawerFragment : BaseFragment() {
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING && requireContext().hasSoftKeyboard()) {
                     binding.search.hideKeyboard()
                 }
-                if (newState == RecyclerView.SCROLL_STATE_IDLE) snapClockHeader()
             }
         })
 
@@ -330,13 +326,6 @@ class AppDrawerFragment : BaseFragment() {
                 }
 
                 val searching = !newText.isNullOrBlank()
-                // Typing goes full screen: results get the room the clock header had
-                if (searching != searchingNow) {
-                    searchingNow = searching
-                    reapplyTop?.invoke()
-                    binding.appsRecyclerView.scrollToPosition(0)
-                    updateClockHeader()
-                }
                 // Section letters only make sense for the full, alphabetical list
                 binding.sidebarContainer.isVisible = prefs.showAZSidebar && !searching
                 showingPinned { pinnedAdapter.setHidden(searching) }
@@ -347,102 +336,6 @@ class AppDrawerFragment : BaseFragment() {
         })
 
         refreshBackground()
-    }
-
-    // ---------------------------------------------------------------- clock header
-
-    /** Height of the expanded clock header (0 when not shown); status bar inset at last layout. */
-    private var headerExpanded = 0
-    private var drawerStatusTop = 0
-    private var searchingNow = false
-    private var reapplyTop: (() -> Unit)? = null
-
-    /** The overlay drawer (not app pickers) opens half way with a clock on top, unless searching. */
-    private fun clockHeaderShown(): Boolean = isEmbedded && flag == AppDrawerFlag.LaunchApp && !searchingNow
-
-    private fun setupClockHeader() {
-        val b = binding
-        if (!(isEmbedded && flag == AppDrawerFlag.LaunchApp)) return
-        b.clockHeader.isVisible = true
-        val locale = prefs.appLanguage.locale()
-        val is24 = android.text.format.DateFormat.is24HourFormat(requireContext())
-        val pattern = if (is24) {
-            android.text.format.DateFormat.getBestDateTimePattern(locale, "Hm")
-        } else {
-            val p = android.text.format.DateFormat.getBestDateTimePattern(locale, "hm")
-            if (prefs.showClockFormat) p else p.replace("a", "").trim()
-        }
-        b.headerClock.format12Hour = pattern
-        b.headerClock.format24Hour = pattern
-        val datePattern = android.text.format.DateFormat.getBestDateTimePattern(locale, "EEEEdMMMM")
-        b.headerDate.format12Hour = datePattern
-        b.headerDate.format24Hour = datePattern
-
-        val typeface = FontManager.getTypeface(requireContext())
-        b.headerClock.typeface = typeface
-        b.headerDate.typeface = typeface
-        b.headerClock.setTextColor(prefs.clockColor)
-        b.headerDate.setTextColor(ColorUtils.setAlphaComponent(prefs.dateColor, 0xC0))
-        b.headerDivider.alpha = 0.15f
-
-        val gravity = when (prefs.clockAlignment) {
-            Constants.Gravity.Left -> Gravity.START
-            Constants.Gravity.Center -> Gravity.CENTER_HORIZONTAL
-            Constants.Gravity.Right -> Gravity.END
-        }
-        b.clockHeader.gravity = Gravity.BOTTOM or gravity
-        b.headerClock.pivotY = b.headerClock.height.toFloat()
-    }
-
-    /**
-     * How far the list has scrolled into the header, in px (0 = half state, header fully shown).
-     * Read from the first row's position rather than the scroll offset estimate, which jumps
-     * with the pinned grid's different height.
-     */
-    private fun headerCollapsedPx(): Int {
-        val b = _binding ?: return 0
-        val rv = b.appsRecyclerView
-        val lm = rv.layoutManager as? LinearLayoutManager ?: return 0
-        val range = (headerExpanded - drawerStatusTop).coerceAtLeast(1)
-        if (lm.findFirstVisibleItemPosition() != 0) return range
-        val first = lm.findViewByPosition(0) ?: return range
-        return (rv.paddingTop - lm.getDecoratedTop(first)).coerceIn(0, range)
-    }
-
-    /** Slide, shrink and fade the clock with the scroll; the list's top fade follows it. */
-    private fun updateClockHeader() {
-        val b = _binding ?: return
-        if (headerExpanded <= 0 || !clockHeaderShown()) {
-            b.clockHeader.isVisible = false
-            b.appsRecyclerView.fadeTopAt = -1
-            return
-        }
-        b.clockHeader.isVisible = true
-        val range = (headerExpanded - drawerStatusTop).coerceAtLeast(1)
-        val collapsed = headerCollapsedPx()
-        val f = collapsed.toFloat() / range
-        b.clockHeader.translationY = -collapsed.toFloat()
-        b.clockHeader.alpha = (1f - f * 1.4f).coerceIn(0f, 1f)
-        val scale = 1f - 0.25f * f
-        b.headerClock.scaleX = scale
-        b.headerClock.scaleY = scale
-        b.headerClock.pivotX = when (b.clockHeader.gravity and Gravity.HORIZONTAL_GRAVITY_MASK) {
-            Gravity.CENTER_HORIZONTAL -> b.headerClock.width / 2f
-            Gravity.END, Gravity.RIGHT -> b.headerClock.width.toFloat()
-            else -> 0f
-        }
-        b.headerClock.pivotY = b.headerClock.height.toFloat()
-        b.appsRecyclerView.fadeTopAt = b.appsRecyclerView.paddingTop - collapsed
-    }
-
-    /** Let go half way through the collapse: finish it in whichever direction is closer. */
-    private fun snapClockHeader() {
-        val b = _binding ?: return
-        if (headerExpanded <= 0 || !clockHeaderShown()) return
-        val range = (headerExpanded - drawerStatusTop).coerceAtLeast(1)
-        val collapsed = headerCollapsedPx()
-        if (collapsed <= 0 || collapsed >= range) return
-        b.appsRecyclerView.smoothScrollBy(0, if (collapsed > range / 2) range - collapsed else -collapsed)
     }
 
     // ---------------------------------------------------------------- layout
@@ -465,21 +358,7 @@ class AppDrawerFragment : BaseFragment() {
             val b = _binding ?: return
             b.drawerHeader.updatePadding(top = statusTop)
             val headerBottom = if (b.appDrawerTip.isVisible || b.pickerTitle.isVisible || b.clearHomeButton.isVisible) b.drawerHeader.height else statusTop
-            drawerStatusTop = statusTop
-            // Half-open drawer: the clock header takes ~30% of the panel, and the list starts below it
-            val clockTop = if (clockHeaderShown()) {
-                val expanded = maxOf((b.mainLayout.height * 0.30f).toInt(), statusTop + b.clockHeader.measuredHeight)
-                if (b.clockHeader.layoutParams.height != expanded) {
-                    b.clockHeader.layoutParams = b.clockHeader.layoutParams.apply { height = expanded }
-                }
-                b.clockHeader.updatePadding(top = statusTop)
-                headerExpanded = expanded
-                expanded
-            } else {
-                headerExpanded = 0
-                0
-            }
-            val top = maxOf(statusTop, headerBottom, clockTop) + gap
+            val top = maxOf(statusTop, headerBottom) + gap
             if (b.appsRecyclerView.paddingTop != top) b.appsRecyclerView.updatePadding(top = top)
             (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
                 if (it.topMargin != top) {
@@ -514,10 +393,6 @@ class AppDrawerFragment : BaseFragment() {
         }
 
         binding.drawerHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyTop() }
-        binding.mainLayout.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-            if (bottom - top != oldBottom - oldTop) applyTop()
-        }
-        reapplyTop = { applyTop() }
 
         ViewCompat.setOnApplyWindowInsetsListener(panel) { _, insets ->
             statusTop = insets.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()).top
