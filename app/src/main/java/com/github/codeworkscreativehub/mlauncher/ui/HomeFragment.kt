@@ -189,6 +189,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         updateTimeAndInfo()
         binding.clock.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> positionSticker() }
         binding.timeDateLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> keepListBelowClock() }
+        // Re-fit whenever the list itself is laid out (rows added, gap or size changed); idempotent
+        binding.homeAppsLayout.addOnLayoutChangeListener { v, _, t, _, b, _, ot, _, ob ->
+            if (b - t != ob - ot || (v as ViewGroup).childCount != lastFitCount) v.post { fitRows() }
+        }
         updateClockSticker()
         refreshIconsIfStale()
     }
@@ -213,8 +217,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         list.post { fitRows() }
     }
 
+    private var lastFitCount = -1
+
     private fun fitRows() {
         val list = _binding?.homeAppsLayout ?: return
+        lastFitCount = list.childCount
         val rows = list.children.filter { it.isVisible }.toList()
         if (rows.isEmpty() || list.height == 0) return
         val available = list.height - list.paddingTop - list.paddingBottom
