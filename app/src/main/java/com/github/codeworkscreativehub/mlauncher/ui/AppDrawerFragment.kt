@@ -395,7 +395,10 @@ class AppDrawerFragment : BaseFragment() {
         val up = if (pill.isVisible) pillUpFraction() else 0f
         val inset = (6 * resources.displayMetrics.density).toInt()
         // The list keeps a slot for it right under the pinned grid while it's up there
-        val slot = ((pill.height + 2 * inset) * up).toInt()
+        // Slot is a little shorter than the pill: it borrows the pinned grid's empty bottom padding,
+        // giving ~10dp of air above and below the pill
+        val d = resources.displayMetrics.density
+        val slot = ((pill.height - 9 * d) * up).toInt().coerceAtLeast(0)
         if (rv.isComputingLayout) rv.post { pillSlot.setHeight(slot) } else pillSlot.setHeight(slot)
 
         // Sticky: it rides in its slot under the pinned grid, and once the slot scrolls past the
@@ -404,7 +407,7 @@ class AppDrawerFragment : BaseFragment() {
         val slotTop = pillSlot.attachedView()?.takeIf { it.parent === rv }?.top
         // Pinned labels leave extra air below the grid, so ride 8dp high in the slot: equal gaps above and below
         val lift = (8 * resources.displayMetrics.density).toInt()
-        val restY = if (slotTop != null) maxOf(listTop, slotTop + inset - lift) else listTop
+        val restY = if (slotTop != null) maxOf(listTop, slotTop - (12.5f * d).toInt()) else listTop
         val stuck = restY <= listTop
 
         val atBottom = -sheetTop
