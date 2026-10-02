@@ -503,7 +503,7 @@ class HoloStickerView @JvmOverloads constructor(
 
                 // Cracked-ice mosaic (like the reverse-holo card): irregular shards fixed to
                 // the sticker, each reflecting a slightly different shade.
-                float2 q = uv * 4.5;
+                float2 q = uv * 6.5;
                 float2 qi = floor(q);
                 float best = 9.0; float2 bestCell = float2(0.0);
                 for (int yy = -1; yy <= 1; yy++) {
@@ -515,7 +515,7 @@ class HoloStickerView @JvmOverloads constructor(
                     }
                 }
                 float shardHue = (hash(bestCell + 2.7) - 0.5) * 0.3;
-                float shardLum = 0.72 + 0.45 * hash(bestCell + 9.1);
+                float shardLum = 0.92 + 0.25 * hash(bestCell + 9.1);
                 // Each shard is a tiny mirror at its own angle: it brightens when the tilt suits it
                 float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
                 float align = clamp(1.0 - length(L - facet * 0.8) * 1.3, 0.0, 1.0);
@@ -525,7 +525,8 @@ class HoloStickerView @JvmOverloads constructor(
                 // (purple -> red -> blue -> pink -> gold), drifting only a little.
                 float wash = dot(uv, normalize(float2(0.8, 1.0))) * 0.45 + dot(L, float2(0.55, 0.35)) * 0.9
                            + noise(uv * 1.6 + L * 0.15) * 0.25;
-                half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.15) * shardLum * facing;
+                // Lift the darker blues so every shard reads against the pink (even coverage)
+                half3 col = mix(coolSpectrum(wash + shardHue), half3(1.0), 0.3) * shardLum * facing;
 
                 // Hairline striations, barely there
                 float stria = 0.96 + 0.04 * sin(local.y * 1.6);
