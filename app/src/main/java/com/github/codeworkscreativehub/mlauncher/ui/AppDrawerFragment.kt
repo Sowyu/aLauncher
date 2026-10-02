@@ -553,11 +553,20 @@ class AppDrawerFragment : BaseFragment() {
         binding.sidebarContainer.layoutParams = params
 
         if (prefs.showAZSidebar) {
-            val gap = (56 * resources.displayMetrics.density).toInt()
+            val density = resources.displayMetrics.density
+            val gap = (56 * density).toInt()
             binding.appsRecyclerView.updatePadding(
                 left = if (sidebarOnEnd) 0 else gap,
                 right = if (sidebarOnEnd) gap else 0,
             )
+            // The search pill stops short of the sidebar (14dp margin + 32dp strip + 8dp), in every position
+            val clear = (54 * density).toInt()
+            val normal = (16 * density).toInt()
+            (binding.searchContainer.layoutParams as ViewGroup.MarginLayoutParams).apply {
+                marginStart = if (sidebarOnEnd) normal else clear
+                marginEnd = if (sidebarOnEnd) clear else normal
+                binding.searchContainer.layoutParams = this
+            }
         }
     }
 

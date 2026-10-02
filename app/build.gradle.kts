@@ -13,7 +13,7 @@ plugins {
 val major = 1
 val minor = 12
 val patch = 1
-val build = 49
+val build = 50
 
 val baseVersionName = "$major.$minor.$patch Build $build"
 

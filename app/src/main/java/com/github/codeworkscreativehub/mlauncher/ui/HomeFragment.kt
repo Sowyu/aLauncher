@@ -148,6 +148,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         setupDrawer(savedInstanceState)
         setupEditMode()
+        // The view model may have read the alignment before a migration changed it
+        viewModel.updateHomeAppsAlignment(prefs.homeAlignment, prefs.homeAlignmentBottom)
         // The app list fills the space between the date and the bottom gap (centred in it when
         // centred vertically), wherever the clock block ends up
         binding.timeDateLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fitHomeListUnderDate() }

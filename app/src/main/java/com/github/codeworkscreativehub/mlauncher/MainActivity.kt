@@ -174,11 +174,12 @@ class MainActivity : AppCompatActivity() {
             finish() // Finish MainActivity so that user can't return to it until onboarding is completed
         }
 
+        // Before any screen reads prefs, so they see migrated values
+        migration()
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         val view = binding.root
         setContentView(view)
-
-        migration()
 
         navController = this.findNavController(R.id.nav_host_fragment)
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
