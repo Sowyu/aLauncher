@@ -243,11 +243,11 @@ class HoloStickerView @JvmOverloads constructor(
 
     private fun stepPush(d: Float) {
         // Damped spring toward 0
-        pushVX += (-pushX * 40f - pushVX * 9f) * d
-        pushVY += (-pushY * 40f - pushVY * 9f) * d
+        pushVX += (-pushX * 12f - pushVX * 6f) * d
+        pushVY += (-pushY * 12f - pushVY * 6f) * d
         pushX = (pushX + pushVX * d).coerceIn(-1f, 1f)
         pushY = (pushY + pushVY * d).coerceIn(-1f, 1f)
-        energy *= 0.98f
+        energy *= 0.995f
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -518,8 +518,8 @@ class HoloStickerView @JvmOverloads constructor(
                 float shardLum = 0.92 + 0.25 * hash(bestCell + 9.1);
                 // Each shard is a tiny mirror at its own angle: it brightens when the tilt suits it
                 float2 facet = float2(hash(bestCell + 1.3), hash(bestCell + 6.1)) * 2.0 - 1.0;
-                float align = clamp(1.0 - length(L - facet * 0.8) * 1.3, 0.0, 1.0);
-                float facing = 0.7 + 0.9 * align * align;
+                float align = smoothstep(1.05, 0.25, length(L - facet * 0.8));  // wide window, flat top
+                float facing = 0.7 + 0.9 * align;
 
                 // Broad colour wash across the whole sticker; tilt changes its colour
                 // (purple -> red -> blue -> pink -> gold), drifting only a little.
