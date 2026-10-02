@@ -358,7 +358,7 @@ class HoloStickerView @JvmOverloads constructor(
         val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
         val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
         val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
-        val strength = ((0.62f + 0.38f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
+        val strength = ((0.7f + 0.15f * motion) * holoIntensity / 0.8f).coerceIn(0f, 1f)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && foilShader != null) {
             drawFoilShader(canvas, bmp, art, ring, left, top, size, tx, ty, strength)
         } else {
@@ -481,7 +481,7 @@ class HoloStickerView @JvmOverloads constructor(
                 // colour = fixed structure + view angle. The structure never moves.
                 float ang = 1.05 + (noise(uv * 2.3) - 0.5) * 1.6;
                 float2 g = float2(cos(ang), sin(ang));
-                float phase = dot(uv, g) * 1.6 + dot(L, g) * 0.35 + noise(uv * 5.0) * 0.15;
+                float phase = dot(uv, g) * 1.6 + noise(uv * 5.0) * 0.15;  // fixed: tilt never moves the colours
                 half3 rb = mix(spectrum(phase), half3(1.0), 0.22);
 
                 // Embossed swirl relief, fixed to the card, smooth (low frequency, no dither)
@@ -489,10 +489,10 @@ class HoloStickerView @JvmOverloads constructor(
                 float relief = 0.75 + 0.45 * swirl * (0.4 + 0.6 * clamp(dot(L, g) + 0.5, 0.0, 1.0));
 
                 // Moving reflection of the light; foil is brightest where it catches
-                float2 hc = float2(0.5, 0.5) + float2(L.x, -L.y) * 0.25;
+                float2 hc = float2(0.5, 0.5);
                 float2 dh = uv - hc;
                 float sheen = exp(-dot(dh, dh) * 2.4);
-                float bright = 0.45 + 0.55 * sheen;
+                float bright = 0.6 + 0.25 * sheen;
 
                 // A few large glitter flakes fixed in place that flash when the angle matches
                 float2 cellUv = uv * 14.0;
@@ -524,8 +524,8 @@ class HoloStickerView @JvmOverloads constructor(
 
                 // Tilt reveals and hides the same foil: faint at rest, full when tilted
                 float reveal = 0.18 + 0.82 * smoothstep(0.08, 0.85, length(L));
-                half3 foil = rb * relief * bright + streakCol * glint * 1.03;
-                float k = strength * reveal * (0.85 * bright + 0.85 * streak) * (artW * 0.9 + ringW * 0.75);
+                half3 foil = rb * relief * bright + streakCol * glint * 0.8;
+                float k = strength * reveal * (0.6 * bright + 0.55 * streak) * (artW * 0.9 + ringW * 0.75);
                 half3 rgb = base.rgb / max(base.a, 0.001);
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - clamp(foil * k, 0.0, 1.0));
                 half3 tint = mix(scr, scr * clamp(foil, 0.0, 1.0) * 1.5, 0.2 * k);
