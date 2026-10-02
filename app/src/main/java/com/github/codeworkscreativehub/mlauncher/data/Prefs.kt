@@ -394,6 +394,10 @@ class Prefs(val context: Context) {
         get() = getSetting(CLOCK_STICKER_HOLO_INTENSITY, 80).coerceIn(0, 100)
         set(value) = prefsNormal.edit { putInt(CLOCK_STICKER_HOLO_INTENSITY, value.coerceIn(0, 100)) }
 
+    var clockStickerHoloSensitivity: Int
+        get() = getSetting(CLOCK_STICKER_HOLO_SENSITIVITY, 70).coerceIn(0, 100)
+        set(value) = prefsNormal.edit { putInt(CLOCK_STICKER_HOLO_SENSITIVITY, value.coerceIn(0, 100)) }
+
     /** With a custom icon pack, draw white glyphs for apps the pack doesn't cover. */
     var monochromeIconFallback: Boolean
         get() = getSetting(MONO_ICON_FALLBACK, true)

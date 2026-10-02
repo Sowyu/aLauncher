@@ -189,4 +189,5 @@
     <string name="st_sticker_holo">Holo effect</string>
     <string name="st_sticker_holo_sub">Foil shimmer that follows how you tilt the phone</string>
     <string name="st_sticker_holo_intensity">Holo intensity</string>
+    <string name="st_sticker_holo_sensitivity">Motion sensitivity</string>
 </resources>

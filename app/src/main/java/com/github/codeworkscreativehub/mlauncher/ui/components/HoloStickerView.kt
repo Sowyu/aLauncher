@@ -60,6 +60,16 @@ class HoloStickerView @JvmOverloads constructor(
     private var builtFor = 0
 
     /** 0..1, how strong the foil is. */
+    /** 0..1. Higher = less tilt needed for the full effect and a snappier response. */
+    var holoSensitivity = 0.7f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            tiltRange = 26f - 21f * field          // 26° at 0%, ~11° at 70%, 5° at 100%
+            follow = 0.08f + 0.32f * field         // smoothing per sensor tick
+        }
+    private var tiltRange = 11.3f
+    private var follow = 0.32f
+
     var holoIntensity = 0.8f
         set(value) {
             field = value.coerceIn(0f, 1f)
@@ -91,7 +101,7 @@ class HoloStickerView @JvmOverloads constructor(
     private val rotation = FloatArray(9)
     private val orientation = FloatArray(3)
 
-    /** Smoothed tilt relative to how the phone is being held, in degrees, clamped to ±[TILT_RANGE]. */
+    /** Smoothed tilt relative to how the phone is being held, in degrees, clamped to ±[tiltRange]. */
     private var tiltX = 0f
     private var tiltY = 0f
     private var baseX = Float.NaN
@@ -172,10 +182,10 @@ class HoloStickerView @JvmOverloads constructor(
             baseX += (roll - baseX) * 0.001f
             baseY += (pitch - baseY) * 0.001f
         }
-        val tx = (roll - baseX).coerceIn(-TILT_RANGE, TILT_RANGE)
-        val ty = (pitch - baseY).coerceIn(-TILT_RANGE, TILT_RANGE)
-        tiltX += (tx - tiltX) * 0.12f
-        tiltY += (ty - tiltY) * 0.12f
+        val tx = (roll - baseX).coerceIn(-tiltRange, tiltRange)
+        val ty = (pitch - baseY).coerceIn(-tiltRange, tiltRange)
+        tiltX += (tx - tiltX) * follow
+        tiltY += (ty - tiltY) * follow
         if (abs(tiltX - lastDrawX) > 0.03f || abs(tiltY - lastDrawY) > 0.03f) {
             lastDrawX = tiltX
             lastDrawY = tiltY
@@ -355,8 +365,8 @@ class HoloStickerView @JvmOverloads constructor(
             canvas.drawBitmap(bmp, left, top, basePaint)
             return
         }
-        val tx = (tiltX / TILT_RANGE + pushX).coerceIn(-1.2f, 1.2f)
-        val ty = (tiltY / TILT_RANGE + pushY).coerceIn(-1.2f, 1.2f)
+        val tx = (tiltX / tiltRange + pushX).coerceIn(-1.2f, 1.2f)
+        val ty = (tiltY / tiltRange + pushY).coerceIn(-1.2f, 1.2f)
         val motion = maxOf(sqrt(tx * tx + ty * ty).coerceAtMost(1f), energy)
         // Slider: 0..80% scales up to the default look, 80..100% pushes up to ~1.8x (very strong)
         val scale = if (holoIntensity <= 0.8f) holoIntensity / 0.8f else 1f + (holoIntensity - 0.8f) * 4f
@@ -438,7 +448,7 @@ class HoloStickerView @JvmOverloads constructor(
     }
 
     private companion object {
-        const val TILT_RANGE = 16f
+        
 
         // Foil model: a diffraction foil whose grating direction is fixed per point (gently
         // warped across the card). The diffracted colour at a point depends on the angle

@@ -220,6 +220,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         val sizeDp = prefs.clockStickerSize
         b.clockSticker.holoEnabled = prefs.clockStickerHolo
         b.clockSticker.holoIntensity = prefs.clockStickerHoloIntensity / 100f
+        b.clockSticker.holoSensitivity = prefs.clockStickerHoloSensitivity / 100f
         if (stamp == stickerStamp && sizeDp == stickerSizeDp && (stamp == 0L) == !b.clockSticker.isVisible) return
         stickerStamp = stamp
         stickerSizeDp = sizeDp

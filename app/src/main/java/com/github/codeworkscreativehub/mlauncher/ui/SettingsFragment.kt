@@ -135,7 +135,7 @@ private enum class Page(
     Clock(
         R.string.st_cat_clock, R.string.st_cat_clock_sub, R.drawable.ic_alarm_clock, listOf(
             R.string.st_show_clock, R.string.st_show_ampm, R.string.st_clock_size, R.string.st_clock_colour,
-            R.string.st_clock_alignment, R.string.st_sticker, R.string.st_sticker_size, R.string.st_sticker_holo, R.string.st_sticker_holo_intensity, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
+            R.string.st_clock_alignment, R.string.st_sticker, R.string.st_sticker_size, R.string.st_sticker_holo, R.string.st_sticker_holo_intensity, R.string.st_sticker_holo_sensitivity, R.string.st_show_date, R.string.st_show_day_of_year, R.string.st_date_size,
             R.string.st_date_colour, R.string.st_date_alignment, R.string.st_clock_tap, R.string.st_date_tap,
         )
     ),
@@ -711,6 +711,17 @@ class SettingsFragment : BaseFragment() {
                         onCommit = {
                             intensity = it.roundToInt()
                             prefs.clockStickerHoloIntensity = intensity
+                        }
+                    )
+                    var sensitivity by remember { mutableIntStateOf(prefs.clockStickerHoloSensitivity) }
+                    SliderRow(
+                        title = getLocalizedString(R.string.st_sticker_holo_sensitivity),
+                        value = sensitivity.toFloat(),
+                        range = 0f..100f,
+                        format = { "${it.roundToInt()}%" },
+                        onCommit = {
+                            sensitivity = it.roundToInt()
+                            prefs.clockStickerHoloSensitivity = sensitivity
                         }
                     )
                 }
