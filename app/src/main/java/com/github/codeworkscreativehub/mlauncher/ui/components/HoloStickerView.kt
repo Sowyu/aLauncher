@@ -503,10 +503,23 @@ class HoloStickerView @JvmOverloads constructor(
                 float match = clamp(1.0 - length(L - facet) * 1.4, 0.0, 1.0);
                 float flake = step(0.7, r) * smoothstep(0.32, 0.0, length(f)) * match * match;
 
-                half3 foil = rb * relief * bright;
+                // Herringbone emboss pressed into the card (like full-art V cards). A smooth
+                // sinusoidal height field in pixels, so it stays crisp without dithering.
+                // It's lit like a surface: visible at rest, catches light as the angle changes.
+                float period = max(size / 36.0, 5.0);
+                float zig = abs(fract(local.x / (period * 2.0)) - 0.5) * 2.0 * period;
+                float v = (local.y + zig) / period * 6.2831853;
+                float slopeSign = (fract(local.x / (period * 2.0)) < 0.5) ? 1.0 : -1.0;
+                float2 n2 = float2(slopeSign, -1.0) * cos(v);
+                float lit = dot(n2, L * 1.2 + float2(0.55, -0.7));
+                float emboss = clamp(0.5 + 0.5 * lit, 0.0, 1.0);
+
+                half3 foil = rb * relief * bright * (0.78 + 0.44 * emboss);
                 float k = strength * bright * (artW * 0.85 + ringW * 0.7);
                 // Screen blend keeps Ditto's pink, then a touch of colour mix for richness
                 half3 rgb = base.rgb / max(base.a, 0.001);
+                // The emboss shades the printed art itself, a little, like a pressed surface
+                rgb = rgb * (1.0 + (emboss - 0.5) * 0.26 * (artW + ringW * 0.6));
                 half3 scr = 1.0 - (1.0 - rgb) * (1.0 - foil * k);
                 half3 tint = mix(scr, scr * foil * 1.6, 0.18 * k);
                 half3 outRgb = clamp(tint + half3(flake * 0.9 * strength * artW), 0.0, 1.0);
