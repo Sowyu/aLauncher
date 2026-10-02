@@ -105,7 +105,8 @@ class ReorderableLinearLayout @JvmOverloads constructor(
     /** Rotate around the label, not the middle of a full-width row, so the text barely moves. */
     private fun pivotOnText(row: View) {
         val tv = row as? TextView ?: return
-        val textW = tv.paint.measureText(tv.text?.toString() ?: "") +
+        val textW = (tv.layout?.takeIf { it.lineCount > 0 }?.getLineWidth(0)
+            ?: tv.paint.measureText(tv.text?.toString() ?: "")) +
             tv.compoundPaddingLeft + tv.compoundPaddingRight
         val w = row.width.toFloat()
         val gravity = tv.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK

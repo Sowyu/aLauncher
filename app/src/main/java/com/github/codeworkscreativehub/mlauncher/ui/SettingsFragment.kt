@@ -151,7 +151,7 @@ private enum class Page(
         R.string.st_cat_drawer, R.string.st_cat_drawer_sub, R.drawable.ic_search, listOf(
             R.string.st_hide_search, R.string.st_auto_keyboard, R.string.st_search_engine,
             R.string.st_web_search_button, R.string.st_fuzzy, R.string.st_search_from_start,
-            R.string.st_fuzzy_strength, R.string.st_auto_open, R.string.st_open_on_enter, R.string.st_az_sidebar, R.string.st_drawer_fullscreen,
+            R.string.st_fuzzy_strength, R.string.st_auto_open, R.string.st_open_on_enter, R.string.st_az_sidebar, R.string.st_drawer_half_sheet, R.string.st_drawer_fullscreen,
             R.string.st_drawer_alignment, R.string.st_drawer_icons, R.string.st_long_press_menu,
             R.string.st_hidden_apps, R.string.st_pinned_apps, R.string.st_clear_pinned,
             R.string.st_drawer_background, R.string.st_blur,
@@ -994,8 +994,17 @@ class SettingsFragment : BaseFragment() {
 
         SectionHeader(getLocalizedString(R.string.st_sec_list))
         SettingsCard {
-            var fullscreen by remember { mutableStateOf(prefs.drawerFullscreen) }
+            var halfSheet by remember { mutableStateOf(prefs.drawerHalfSheet) }
             SwitchRow(
+                title = getLocalizedString(R.string.st_drawer_half_sheet),
+                subtitle = getLocalizedString(R.string.st_drawer_half_sheet_sub),
+                checked = halfSheet
+            ) {
+                halfSheet = it
+                prefs.drawerHalfSheet = it
+            }
+            var fullscreen by remember { mutableStateOf(prefs.drawerFullscreen) }
+            if (halfSheet) SwitchRow(
                 title = getLocalizedString(R.string.st_drawer_fullscreen),
                 subtitle = getLocalizedString(R.string.st_drawer_fullscreen_sub),
                 checked = fullscreen

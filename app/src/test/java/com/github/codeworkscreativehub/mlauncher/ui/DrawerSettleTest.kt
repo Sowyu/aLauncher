@@ -34,4 +34,11 @@ class DrawerSettleTest {
         assertEquals(SHEET_HALF, settleTarget(0f, 0.9f, fling, SHEET_HALF, allowFull = false))
         assertEquals(0f, settleTarget(4000f, 0.5f, fling, SHEET_HALF, allowFull = false))
     }
+
+    @Test
+    fun withoutHalfSheetItIsClosedOrFull() {
+        assertEquals(1f, settleTarget(0f, 0.4f, fling, 0f, halfSheet = false))
+        assertEquals(1f, settleTarget(-4000f, 0.1f, fling, 0f, halfSheet = false))
+        assertEquals(0f, settleTarget(0f, 0.5f, fling, 1f, halfSheet = false))
+    }
 }

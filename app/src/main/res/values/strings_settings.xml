@@ -197,4 +197,6 @@
     <string name="st_clear_pinned_confirm">Remove every app from the pinned row?</string>
     <string name="st_drawer_fullscreen">Full screen mode</string>
     <string name="st_drawer_fullscreen_sub">Scrolling up past the top, or searching, expands the drawer to full screen</string>
+    <string name="st_drawer_half_sheet">Half sheet</string>
+    <string name="st_drawer_half_sheet_sub">Open the drawer half way over the home screen. Off opens it full screen</string>
 </resources>

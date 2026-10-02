@@ -102,7 +102,11 @@ class AppDrawerFragment : BaseFragment() {
     private lateinit var pinnedAdapter: PinnedAppsAdapter
 
     /** Rows above the first app: the pinned row when it shows. */
-    private val headerCount: Int get() = if (::pinnedAdapter.isInitialized) pinnedAdapter.itemCount else 0
+    private val headerCount: Int
+        get() = (if (::pinnedAdapter.isInitialized) pinnedAdapter.itemCount else 0) + pillSlot.itemCount
+
+    /** Room under the pinned grid where the search pill rests in the half sheet. */
+    private val pillSlot = PillSlotAdapter()
 
     private var _binding: FragmentAppDrawerBinding? = null
     private val binding get() = _binding!!
@@ -224,7 +228,7 @@ class AppDrawerFragment : BaseFragment() {
             // Rows fade out exactly where they meet the status bar and the search pill
             edgeFadeLength = (28 * resources.displayMetrics.density).toInt()
             // The pinned row is a header that scrolls with the list
-            adapter = ConcatAdapter(pinnedAdapter, appAdapter)
+            adapter = ConcatAdapter(pinnedAdapter, pillSlot, appAdapter)
         }
 
         // Search results read top-down from the top of the list, best match first
@@ -361,6 +365,41 @@ class AppDrawerFragment : BaseFragment() {
 
     /** How far the sheet's top edge is below the top of the screen, in px (0 = full screen). */
     private var sheetTop = 0f
+    private var sheetProgress = 0f
+    private var imeFraction = 0f
+    private var pillRise = 0f
+    private var pinnedHeight = 0
+
+    /**
+     * 1 = the pill rests under the pinned grid (half sheet), 0 = at the bottom of the screen
+     * (full screen, one-stage mode, or the keyboard is up so it rides on top of it). Blends
+     * with the sheet's progress and the keyboard animation, so it never jumps.
+     */
+    private fun pillUpFraction(): Float {
+        if (!isEmbedded || !prefs.drawerHalfSheet) return 0f
+        val full = ((sheetProgress - HomeFragment.SHEET_HALF) / (1f - HomeFragment.SHEET_HALF)).coerceIn(0f, 1f)
+        return (1f - full) * (1f - imeFraction)
+    }
+
+    /** Place the pill: under the pinned grid, at the screen bottom, or in between. */
+    private fun positionPill() {
+        val b = _binding ?: return
+        val pill = b.searchContainer
+        val rv = b.appsRecyclerView
+        val up = if (pill.isVisible) pillUpFraction() else 0f
+        // The list keeps a slot for it under the pinned grid while it's up there
+        val slot = ((pill.height + 16 * resources.displayMetrics.density) * up).toInt()
+        if (rv.isComputingLayout) rv.post { pillSlot.setHeight(slot) } else pillSlot.setHeight(slot)
+        rv.findViewHolderForAdapterPosition(0)?.itemView?.let {
+            if (::pinnedAdapter.isInitialized && pinnedAdapter.itemCount > 0) pinnedHeight = it.height
+        }
+        if (!::pinnedAdapter.isInitialized || pinnedAdapter.itemCount == 0) pinnedHeight = 0
+        val atBottom = -sheetTop
+        val natural = (b.mainLayout.height - pill.height -
+            ((pill.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin)).toFloat()
+        val underPinned = rv.paddingTop + pinnedHeight + 8 * resources.displayMetrics.density - natural
+        pill.translationY = atBottom + (underPinned - atBottom) * up + pillRise
+    }
 
     /**
      * The list sits at its top and should stay there while the sheet moves. Padding changes
@@ -431,16 +470,20 @@ class AppDrawerFragment : BaseFragment() {
             // The sheet sits sheetTop lower than the screen: keep the list's end above the pill,
             // which itself is held at the screen bottom by a counter-translation
             val sheetShift = sheetTop.toInt()
+            imeFraction = (ime / (3f * pillHeight)).coerceIn(0f, 1f)
+            val pillDown = 1f - pillUpFraction()
             val listBottom = sheetShift + if (b.searchContainer.isVisible) {
                 val params = b.searchContainer.layoutParams as ViewGroup.MarginLayoutParams
                 if (params.bottomMargin != inset + pillMargin) {
                     params.bottomMargin = inset + pillMargin
                     b.searchContainer.layoutParams = params
                 }
-                inset + pillMargin + pillHeight + gap
+                // Room for the pill at the bottom only as far as it is down there
+                inset + gap + ((pillMargin + pillHeight) * pillDown).toInt()
             } else {
                 inset + gap
             }
+            positionPill()
             if (b.appsRecyclerView.paddingBottom != listBottom) b.appsRecyclerView.updatePadding(bottom = listBottom)
             (b.sidebarContainer.layoutParams as ViewGroup.MarginLayoutParams).let {
                 if (it.bottomMargin != listBottom) {
@@ -585,11 +628,12 @@ class AppDrawerFragment : BaseFragment() {
         val oldTop = sheetTop
         sheetTop = top
         b.mainLayout.translationY = top
-        // The pill belongs to the sheet but lives at the bottom of the screen: it stays put and
-        // just fades in and rises 16dp as the sheet comes up to half, reversing on the way down
+        sheetProgress = progress
+        // The pill fades in and rises 16dp as the sheet comes up, reversing on the way down
         val arrive = (progress / HomeFragment.SHEET_HALF).coerceIn(0f, 1f)
-        b.searchContainer.translationY = -top + (1f - arrive) * 16f * resources.displayMetrics.density
+        pillRise = (1f - arrive) * 16f * resources.displayMetrics.density
         b.searchContainer.alpha = arrive
+        positionPill()
         // Blurred wallpaper stays aligned with the real one; only the sheet-shaped window moves.
         // Corners round off as the sheet leaves the top of the screen.
         val corner = 28f * resources.displayMetrics.density
@@ -1049,5 +1093,37 @@ class AppDrawerFragment : BaseFragment() {
                 androidx.core.content.res.ResourcesCompat.getFont(context, R.font.google_sans_flex_medium)?.let { typeface = it }
             }
         }
+    }
+}
+
+/** One empty row whose height the drawer sets: the spot the search pill sits in, half sheet only. */
+private class PillSlotAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+    private var height = 0
+    private var view: View? = null
+
+    fun setHeight(px: Int) {
+        if (px == height) return
+        val wasShown = height > 0
+        height = px
+        when {
+            wasShown && px == 0 -> notifyItemRemoved(0)
+            !wasShown && px > 0 -> notifyItemInserted(0)
+            else -> view?.let { v -> v.layoutParams = v.layoutParams.apply { height = px } }
+        }
+    }
+
+    override fun getItemCount() = if (height > 0) 1 else 0
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val v = View(parent.context).apply {
+            layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height)
+        }
+        view = v
+        return object : RecyclerView.ViewHolder(v) {}
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        view = holder.itemView
+        holder.itemView.layoutParams = holder.itemView.layoutParams.apply { height = this@PillSlotAdapter.height }
     }
 }

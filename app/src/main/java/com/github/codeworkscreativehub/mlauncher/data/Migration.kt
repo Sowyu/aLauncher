@@ -59,6 +59,15 @@ class Migration(val context: Context) {
 
         var totalRemoved = 0
 
+        // Build 49: the home list goes centred (icons kept inline) and sits centred between the
+        // date and the bottom gap. Only moves people off the old right-aligned default.
+        if (savedVersionCode in 1..1120148 && currentVersionCode >= 1120149) {
+            if (prefs.homeAlignment == Constants.Gravity.Right) {
+                prefs.homeAlignment = Constants.Gravity.Center
+                prefs.homeAlignmentBottom = false
+            }
+        }
+
         for ((version, keys) in versionCleanupMap) {
             // Only versions newer than the one last run; an inclusive lower bound re-ran them every launch
             if (version > savedVersionCode && version <= currentVersionCode) {

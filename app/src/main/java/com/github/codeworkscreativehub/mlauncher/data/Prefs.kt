@@ -408,6 +408,11 @@ class Prefs(val context: Context) {
         get() = getSetting(DRAWER_FULLSCREEN, false)
         set(value) = prefsNormal.edit { putBoolean(DRAWER_FULLSCREEN, value) }
 
+    /** Open the drawer as a half sheet over home. Off: one stage, straight to full screen. */
+    var drawerHalfSheet: Boolean
+        get() = getSetting(DRAWER_HALF_SHEET, true)
+        set(value) = prefsNormal.edit { putBoolean(DRAWER_HALF_SHEET, value) }
+
     var hideSearchView: Boolean
         get() = getSetting(HIDE_SEARCH_VIEW, false)
         set(value) = prefsNormal.edit { putBoolean(HIDE_SEARCH_VIEW, value) }

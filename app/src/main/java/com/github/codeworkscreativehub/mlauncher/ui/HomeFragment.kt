@@ -39,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.children
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.ViewModelProvider
@@ -147,6 +148,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
         setupDrawer(savedInstanceState)
         setupEditMode()
+        // The app list fills the space between the date and the bottom gap (centred in it when
+        // centred vertically), wherever the clock block ends up
+        binding.timeDateLayout.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fitHomeListUnderDate() }
     }
 
     override fun onResume() {
@@ -952,8 +956,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                                 compoundDrawablePadding = iconPadding
                             }
 
-                            else -> setCompoundDrawables(null, null, null, null)
+                            Constants.Gravity.Center -> {
+                                // Centred rows keep their icon: it goes inline, left of the name,
+                                // so gravity centres icon + name as one unit even on full-width rows
+                                setCompoundDrawables(null, null, null, null)
+                                text = withInlineIcon(text, drawableToUse, iconSize, iconPadding)
+                            }
                         }
+                        val inlineIcon = prefs.homeAlignment == Constants.Gravity.Center
 
                         val nm = NotificationManagerCompat.getEnabledListenerPackages(context)
 
@@ -1002,7 +1012,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                                     spannable
                                 } else {
                                     appModel.activityLabel
-                                }
+                                }.let { if (inlineIcon) withInlineIcon(it, drawableToUse, iconSize, iconPadding) else it }
 
                                 AppLogger.d("HomeFragment", "Notification count updated for $packageName: $count")
                             }
@@ -1332,7 +1342,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     /** True if [x] (row coordinates) falls on the label or its icon, with a little slack. */
     private fun isOnLabel(row: View, x: Float): Boolean {
         val tv = row as? TextView ?: return true
-        val textW = tv.paint.measureText(tv.text?.toString() ?: "")
+        // Laid-out width counts inline icon spans too (centred rows)
+        val textW = tv.layout?.takeIf { it.lineCount > 0 }?.getLineWidth(0)
+            ?: tv.paint.measureText(tv.text?.toString() ?: "")
         val icons = tv.compoundDrawables.filterNotNull().sumOf { it.bounds.width() } +
             (if (tv.compoundDrawables.any { it != null }) tv.compoundDrawablePadding else 0)
         val content = textW + icons
@@ -1431,6 +1443,38 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         }
     }
 
+
+    private fun fitHomeListUnderDate() {
+        val b = _binding ?: return
+        val list = b.homeAppsLayout
+        val dateBlock = b.timeDateLayout
+        val top = if (dateBlock.isShown && dateBlock.height > 0) {
+            val a = IntArray(2)
+            val c = IntArray(2)
+            dateBlock.getLocationInWindow(a)
+            list.getLocationInWindow(c)
+            (a[1] + dateBlock.height - c[1]) + (24 * resources.displayMetrics.density).toInt()
+        } else {
+            (100 * resources.displayMetrics.density).toInt()
+        }
+        if (top > 0 && list.paddingTop != top) list.post { list.updatePadding(top = top) }
+    }
+
+    /** [label] with [icon] drawn inline before it, followed by [gap] px of space. */
+    private fun withInlineIcon(label: CharSequence, icon: Drawable, size: Int, gap: Int): CharSequence {
+        val padded = android.graphics.drawable.InsetDrawable(icon, 0, 0, gap, 0).apply {
+            setBounds(0, 0, size + gap, size)
+        }
+        val align = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            android.text.style.DynamicDrawableSpan.ALIGN_CENTER
+        } else {
+            android.text.style.DynamicDrawableSpan.ALIGN_BASELINE
+        }
+        return SpannableStringBuilder("\uFFFC").apply {
+            setSpan(ImageSpan(padded, align), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(label)
+        }
+    }
 
     // ------------------------------------------------------------------ home edit mode
     //
@@ -1546,7 +1590,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                 applyDrawerProgress(backStartProgress * (1f - 0.2f * backEvent.progress))
             }
 
-            override fun handleOnBackCancelled() = animateDrawerTo(drawerTargetProgress.takeIf { it > 0f } ?: SHEET_HALF)
+            override fun handleOnBackCancelled() = animateDrawerTo(drawerTargetProgress.takeIf { it > 0f } ?: if (prefs.drawerHalfSheet) SHEET_HALF else 1f)
 
             override fun handleOnBackPressed() = animateDrawerTo(0f)
         }
@@ -1582,11 +1626,17 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         drawer.onDrawerOpening()
         if (query != null) drawer.setSearchQuery(query)
         // A sheet over the home screen; typing (a hardware-key search) gets the full screen
-        animateDrawerTo(if (query != null && prefs.drawerFullscreen) 1f else SHEET_HALF)
+        animateDrawerTo(
+            when {
+                !prefs.drawerHalfSheet -> 1f
+                query != null && prefs.drawerFullscreen -> 1f
+                else -> SHEET_HALF
+            }
+        )
     }
 
     override fun expandDrawer() {
-        if (drawerTargetOpen && prefs.drawerFullscreen) animateDrawerTo(1f)
+        if (drawerTargetOpen && (prefs.drawerFullscreen || !prefs.drawerHalfSheet)) animateDrawerTo(1f)
     }
 
     override fun drawerProgressNow(): Float = drawerProgress
@@ -1621,13 +1671,18 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         var p = dragStartProgress - dy / drawerTravel()
         // Opening from home always stops at half, however far or hard you swipe; without
         // full screen mode the sheet never goes past half at all
-        if (dragStartProgress < SHEET_HALF - 0.001f || !prefs.drawerFullscreen) p = p.coerceAtMost(SHEET_HALF)
+        if (prefs.drawerHalfSheet && (dragStartProgress < SHEET_HALF - 0.001f || !prefs.drawerFullscreen)) {
+            p = p.coerceAtMost(SHEET_HALF)
+        }
         applyDrawerProgress(p)
     }
 
     override fun onDrawerDragEnd(velocityY: Float) {
         val fling = FLING_DP_PER_S * resources.displayMetrics.density
-        animateDrawerTo(settleTarget(velocityY, drawerProgress, fling, dragStartProgress, prefs.drawerFullscreen), velocityY)
+        animateDrawerTo(
+            settleTarget(velocityY, drawerProgress, fling, dragStartProgress, prefs.drawerFullscreen, prefs.drawerHalfSheet),
+            velocityY
+        )
     }
 
     private fun drawerTravel(): Float {
@@ -1718,8 +1773,19 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
          * 35% of the way into the next segment, else returns.
          */
         internal fun settleTarget(
-            velocityY: Float, progress: Float, flingPx: Float, startProgress: Float, allowFull: Boolean = true,
+            velocityY: Float, progress: Float, flingPx: Float, startProgress: Float,
+            allowFull: Boolean = true, halfSheet: Boolean = true,
         ): Float {
+            if (!halfSheet) {
+                // One stage: closed or full screen
+                return when {
+                    velocityY < -flingPx -> 1f
+                    velocityY > flingPx -> 0f
+                    progress > startProgress -> if (progress > 0.35f) 1f else 0f
+                    progress < startProgress -> if (progress < 0.65f) 0f else 1f
+                    else -> if (progress >= 0.5f) 1f else 0f
+                }
+            }
             val target = settleAnywhere(velocityY, progress, flingPx, startProgress)
             return if (allowFull) target else target.coerceAtMost(SHEET_HALF)
         }
