@@ -94,24 +94,8 @@ class PinnedAppsAdapter(
         }
         root.addView(content, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 
-        // Same voice as the settings section headers: small mauve caps
-        content.addView(AppCompatTextView(ctx).apply {
-            text = ctx.getString(R.string.pinned_header).uppercase()
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            letterSpacing = 0.06f
-            typeface = mediumTypeface(ctx)
-            setTextColor(ContextCompat.getColor(ctx, R.color.app_menu_accent))
-            this.gravity = gravity
-            setPadding(dp(12), 0, dp(12), dp(8))
-            ViewCompat.setAccessibilityHeading(this, true)
-        }, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-
         val grid = PinnedGrid(ctx, gravity).apply {
             setPadding(dp(4), dp(4), dp(4), dp(4))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(20).toFloat()
-                setColor(ContextCompat.getColor(ctx, R.color.drawer_pinned_surface))
-            }
         }
         content.addView(grid, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         return Holder(root, content, grid)
